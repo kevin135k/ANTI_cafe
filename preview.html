@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Anti Cafe — 咖啡手沖配方與計時器</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #13110f;
+      color: #e8e2d8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .font-serif-num {
+      font-family: 'Playfair Display', Georgia, serif;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .circle-glow {
+      box-shadow: 0 0 35px rgba(212, 163, 115, 0.22);
+    }
+    .btn-gold-glow {
+      box-shadow: 0 0 25px rgba(212, 163, 115, 0.35);
+    }
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.02); opacity: 0.95; }
+    }
+    .brewing-pulse {
+      animation: pulseSoft 2.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-[#13110f] text-[#e8e2d8] min-h-screen">
+
+  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col relative pb-8">
+    <!-- View will be rendered here dynamically -->
+  </div>
+
+  <script>
+    // --- Complete Recipes Data matching Drive screenshots ---
+    const RECIPES = [
+      {
+        id: 'classic-v60',
+        name: '經典 V60',
+        category: 'V60',
+        referenceAuthor: 'Pourline 新手配方',
+        defaultCoffee: 20,
+        defaultWater: 300,
+        temperature: 93,
+        totalTimeSeconds: 180,
+        ratio: '1:15',
+        summary: '20g 咖啡粉、300g 水、93°C。先注入 60g 悶蒸至 45 秒，再分三次各注 80g，累積至 140、220、300g。以約 3 分鐘濾完為起點，實際流速依研磨與豆子調整。',
+        grindAndFlavor: '從中等研磨開始；若喝起來太苦，可試著磨粗一點。',
+        beanPairing: '使用熟悉的豆子，每次只調整一個變因。',
+        steps: [
+          { id: 1, type: 'pour', title: '悶蒸 — 潤濕所有咖啡粉', waterAmount: 60, duration: 10, desc: '由中心向外繞圈注入 60g 均勻潤濕咖啡粉' },
+          { id: 2, type: 'wait', title: '等待悶蒸', waterAmount: 0, duration: 35, desc: '靜待咖啡粉充分排氣膨脹至 0:45' },
+          { id: 3, type: 'pour', title: '注入 80g — 累積 140g', waterAmount: 80, duration: 20, desc: '細水流繞圈均勻注入 80g' },
+          { id: 4, type: 'wait', title: '暫停注水，等待水位下降', waterAmount: 0, duration: 15, desc: '讓水流自然滲透' },
+          { id: 5, type: 'pour', title: '注入 80g — 累積 220g', waterAmount: 80, duration: 20, desc: '持續柔和注水至 220g' },
+          { id: 6, type: 'wait', title: '暫停注水，等待水位下降', waterAmount: 0, duration: 15, desc: '觀察水位穩定下降' },
+          { id: 7, type: 'pour', title: '注入 80g — 累積 300g', waterAmount: 80, duration: 20, desc: '完成最後一段注水至 300g' },
+          { id: 8, type: 'wait', title: '等待濾完', waterAmount: 0, duration: 45, desc: '約 3 分鐘完全滴濾完成' }
+        ]
+      },
+      {
+        id: '4-6-method',
+        name: '四六法',
+        category: 'V60',
+        referenceAuthor: '參考粕谷哲公開沖煮方法',
+        defaultCoffee: 20,
+        defaultWater: 300,
+        temperature: 92,
+        totalTimeSeconds: 210,
+        ratio: '1:15',
+        summary: '將總水量分為 40% / 60%：前兩段注水決定酸甜平衡，後三段決定濃淡。使用偏粗研磨，讓每段注水間濾杯確實濾乾。第一段比第二段少（例如 50g + 70g）會更甜，多則更明亮。',
+        grindAndFlavor: '偏粗。每段注水前粉床應該已經濾乾。太細：苦澀，下一段要注水時還有積水；太粗：偏酸、單薄，水很快就流光。',
+        beanPairing: '淺焙、明亮的豆子：第一段比第二段少會更甜，比第二段多會更明亮。中焙約 88°C、深焙約 83°C，比較不會苦。後 60% 分較少次注水會比較淡，分較多次會比較濃。',
+        steps: [
+          { id: 1, type: 'pour', title: '第 1 段 — 調酸甜', waterAmount: 60, duration: 10, desc: '前 40%：第一段注入 60g 調節酸甜感' },
+          { id: 2, type: 'wait', title: '等待濾乾', waterAmount: 0, duration: 35, desc: '等待水完全流下，粉床乾淨' },
+          { id: 3, type: 'pour', title: '第 2 段 — 完成前 40%', waterAmount: 60, duration: 10, desc: '注入 60g 累積至 120g' },
+          { id: 4, type: 'wait', title: '等待濾乾', waterAmount: 0, duration: 35, desc: '等待水完全濾下' },
+          { id: 5, type: 'pour', title: '第 3 段 — 調濃淡', waterAmount: 60, duration: 10, desc: '後 60%：注入 60g 累積至 180g' },
+          { id: 6, type: 'wait', title: '等待濾乾', waterAmount: 0, duration: 35, desc: '粉床再次濾乾' },
+          { id: 7, type: 'pour', title: '第 4 段', waterAmount: 60, duration: 10, desc: '注入 60g 累積至 240g' },
+          { id: 8, type: 'wait', title: '等待', waterAmount: 0, duration: 20, desc: '等待水位下降' },
+          { id: 9, type: 'pour', title: '第 5 段', waterAmount: 60, duration: 10, desc: '最後注水 60g 累積至 300g' },
+          { id: 10, type: 'wait', title: '等待濾完 — 3:30 移開濾杯', waterAmount: 0, duration: 35, desc: '準時於 3:30 滴濾完成並移開濾杯' }
+        ]
+      },
+      {
+        id: 'ultimate-v60',
+        name: '終極 V60 手法',
+        category: 'V60',
+        referenceAuthor: '參考 James Hoffmann 公開沖煮方法',
+        defaultCoffee: 30,
+        defaultWater: 500,
+        temperature: 97,
+        totalTimeSeconds: 210,
+        ratio: '1:16.7',
+        summary: '悶蒸後分兩段長注水，再用湯匙順時針、逆時針各攪一下，輕搖濾杯，使粉床平整、萃取均勻。淺焙建議使用接近沸騰的水溫，接近沸騰即可，97°C 為參考值；中細研磨，目標 3:30 前濾完。',
+        grindAndFlavor: '中細。目標約 3:30 濾完、粉床平整。Hoffmann 只靠研磨度調整萃取：喝起來空洞、偏酸就調細，出現苦澀、粗糙感時再稍微調粗。',
+        beanPairing: '為淺焙設計：Hoffmann 建議水溫盡量高，越淺焙的豆子越是水溫越高越好。中深焙也可以把水溫降到 90°C 左右。',
+        steps: [
+          { id: 1, type: 'pour', title: '悶蒸 — 均勻浸濕咖啡粉', waterAmount: 60, duration: 10, desc: '注入粉重兩倍的水量 (60g)' },
+          { id: 2, type: 'wait', title: '搖晃濾杯後悶蒸', waterAmount: 0, duration: 35, desc: '雙手輕搖旋轉濾杯使粉層充分潤濕' },
+          { id: 3, type: 'pour', title: '主注水至 300g', waterAmount: 240, duration: 30, desc: '持續大水流注水至總量 60% (300g)' },
+          { id: 4, type: 'pour', title: '放慢注水至 500g', waterAmount: 200, duration: 30, desc: '放慢水流穩定注滿至目標總量 500g' },
+          { id: 5, type: 'stir', title: '順逆時針攪拌各一下，輕搖濾杯', waterAmount: 0, duration: 15, desc: '用茶匙沖下杯壁細粉並輕晃平整' },
+          { id: 6, type: 'wait', title: '等待濾完 — 粉床平整', waterAmount: 0, duration: 90, desc: '靜待自然流乾至 3:30' }
+        ]
+      },
+      {
+        id: 'single-cup-v60',
+        name: '單杯 V60 手法',
+        category: 'V60',
+        referenceAuthor: '參考 James Hoffmann 公開沖煮方法',
+        defaultCoffee: 15,
+        defaultWater: 250,
+        temperature: 95,
+        totalTimeSeconds: 180,
+        ratio: '1:16.7',
+        summary: 'Hoffmann 的單杯配方：五段各 50g 注水，全程不攪拌，最後輕搖一次即可。穩定且容錯高，適合每天沖。淺焙建議用剛離沸的水。',
+        grindAndFlavor: '中細；粉量少時通常要磨細一點。目標約 3:00 濾完。太細：苦、滴得慢；太粗：偏酸、偏淡。',
+        beanPairing: '日常萬用，淺焙到中焙都很穩定。',
+        steps: [
+          { id: 1, type: 'pour', title: '悶蒸', waterAmount: 50, duration: 10, desc: '第 1 段注入 50g 潤濕' },
+          { id: 2, type: 'wait', title: '搖晃濾杯後悶蒸', waterAmount: 0, duration: 35, desc: '輕晃濾杯等待排氣至 0:45' },
+          { id: 3, type: 'pour', title: '第 2 段 — 至 100g', waterAmount: 50, duration: 10, desc: '穩定中心繞圈注水 50g' },
+          { id: 4, type: 'wait', title: '等待', waterAmount: 0, duration: 15, desc: '等待水位下降' },
+          { id: 5, type: 'pour', title: '第 3 段 — 至 150g', waterAmount: 50, duration: 10, desc: '注水 50g 至 150g' },
+          { id: 6, type: 'wait', title: '等待', waterAmount: 0, duration: 10, desc: '等待水位微降' },
+          { id: 7, type: 'pour', title: '第 4 段 — 至 200g', waterAmount: 50, duration: 10, desc: '注水 50g 至 200g' },
+          { id: 8, type: 'wait', title: '等待', waterAmount: 0, duration: 10, desc: '等待水位微降' },
+          { id: 9, type: 'pour', title: '第 5 段 — 至 250g', waterAmount: 50, duration: 10, desc: '注入最後 50g' },
+          { id: 10, type: 'wait', title: '輕搖後等待濾完', waterAmount: 0, duration: 60, desc: '輕晃濾杯一次，等待滴乾' }
+        ]
+      },
+      {
+        id: 'origami-30s',
+        name: 'Origami 30 秒五段注水',
+        category: 'Origami',
+        referenceAuthor: '參考 Carlos Medina 於 Slow Pour Supply 公開沖煮方法',
+        defaultCoffee: 15.5,
+        defaultWater: 250,
+        temperature: 91,
+        totalTimeSeconds: 160,
+        ratio: '1:16.1',
+        summary: '五段各 50g，每 30 秒注一次，每段由內往外再繞回中心畫圈。1:16 的小杯配方，水溫 91°C，約 2:40 完成。原配方使用軟水（約 65 ppm）與錐形濾紙。',
+        grindAndFlavor: '中等（原配方使用 1Zpresso ZP6 刻度 5.2）。每段大致濾下後再注下一段，總時間約 2:40。',
+        beanPairing: '適合明亮、果香調的豆子——比賽用豆是日曬 Sidra。適合淺焙與日曬處理。',
+        steps: [
+          { id: 1, type: 'pour', title: '第 1 段注水 — 悶蒸', waterAmount: 50, duration: 10, desc: '由內向外再繞回中心注入 50g' },
+          { id: 2, type: 'wait', title: '等待至 0:30', waterAmount: 0, duration: 20, desc: '靜候排氣至 30 秒' },
+          { id: 3, type: 'pour', title: '第 2 段注水 — 至 100g', waterAmount: 50, duration: 10, desc: '第 2 段注入 50g' },
+          { id: 4, type: 'wait', title: '等待至 1:00', waterAmount: 0, duration: 20, desc: '靜候濾落至 1:00' },
+          { id: 5, type: 'pour', title: '第 3 段注水 — 至 150g', waterAmount: 50, duration: 10, desc: '第 3 段注入 50g' },
+          { id: 6, type: 'wait', title: '等待至 1:30', waterAmount: 0, duration: 20, desc: '靜候濾落至 1:30' },
+          { id: 7, type: 'pour', title: '第 4 段注水 — 至 200g', waterAmount: 50, duration: 10, desc: '第 4 段注入 50g' },
+          { id: 8, type: 'wait', title: '等待至 2:00', waterAmount: 0, duration: 20, desc: '靜候濾落至 2:00' },
+          { id: 9, type: 'pour', title: '第 5 段注水 — 至 250g', waterAmount: 50, duration: 10, desc: '第 5 段注入 50g' },
+          { id: 10, type: 'wait', title: '等待濾完', waterAmount: 0, duration: 30, desc: '約 2:40 完全濾落' }
+        ]
+      },
+      {
+        id: 'kalita-wave-classic',
+        name: 'Kalita 波浪經典法',
+        category: 'Kalita Wave',
+        referenceAuthor: '參考 Counter Culture Coffee 沖煮指南',
+        defaultCoffee: 30,
+        defaultWater: 500,
+        temperature: 93,
+        totalTimeSeconds: 225,
+        ratio: '1:16.7',
+        summary: '平底濾杯的沖法：悶蒸後以小水量分次補水，保持水位穩定。波浪濾杯的平底設計容錯度高，適合較大杯量。',
+        grindAndFlavor: '中等。平底濾杯比較寬容，3:30–4:00 濾完都可以。太細：苦、尾韻乾；太粗：偏酸、水感。',
+        beanPairing: '口感圓潤厚實，適合中焙和巧克力、堅果調的豆子，也適合一次沖大杯。',
+        steps: [
+          { id: 1, type: 'pour', title: '悶蒸 — 小水量潤濕', waterAmount: 60, duration: 15, desc: '輕柔潤濕平底粉層' },
+          { id: 2, type: 'wait', title: '等待悶蒸', waterAmount: 0, duration: 30, desc: '靜候咖啡粉排氣' },
+          { id: 3, type: 'pour', title: '第 2 段注水 — 至 200g', waterAmount: 140, duration: 25, desc: '中心畫圈注入 140g' },
+          { id: 4, type: 'wait', title: '等待水位微降', waterAmount: 0, duration: 20, desc: '維持水位平穩' },
+          { id: 5, type: 'pour', title: '第 3 段注水 — 至 350g', waterAmount: 150, duration: 25, desc: '分次平穩補水 150g' },
+          { id: 6, type: 'wait', title: '等待水位微降', waterAmount: 0, duration: 20, desc: '維持水位平穩' },
+          { id: 7, type: 'pour', title: '第 4 段注水 — 至 500g', waterAmount: 150, duration: 25, desc: '注滿至 500g' },
+          { id: 8, type: 'wait', title: '等待濾完', waterAmount: 0, duration: 50, desc: '約 3:45 均勻滴漏完畢' }
+        ]
+      },
+      {
+        id: 'danish-iced-pourover',
+        name: '丹麥式冰手沖',
+        category: '冰手沖',
+        referenceAuthor: '參考 La Cabra 沖煮指南',
+        defaultCoffee: 18,
+        defaultWater: 180,
+        defaultIce: 60,
+        temperature: 96,
+        totalTimeSeconds: 150,
+        ratio: '1:10 (熱水) / 1:13.3 (含冰)',
+        summary: '下壺放少量冰塊（60g），以 96°C 熱水分三段各注 60g，約兩分半濾完，再倒入另一杯冰塊享用。',
+        grindAndFlavor: '中細，比熱沖細一點：熱水量少，要靠研磨補足萃取。約 2:30 濾完。',
+        beanPairing: '冰鎮會放大酸質與果香，淺焙的水果調、花香調豆子最適合。',
+        steps: [
+          { id: 1, type: 'pour', title: '下壺置冰 60g，第 1 段悶蒸', waterAmount: 60, duration: 10, desc: '下壺放冰塊，注入 60g 96°C 熱水' },
+          { id: 2, type: 'wait', title: '等待悶蒸', waterAmount: 0, duration: 35, desc: '等待至 0:45' },
+          { id: 3, type: 'pour', title: '第 2 段注水 — 至 120g', waterAmount: 60, duration: 15, desc: '細水流均勻注水 60g' },
+          { id: 4, type: 'wait', title: '等待水位下降', waterAmount: 0, duration: 20, desc: '滴落於下壺冰塊上迅速降溫' },
+          { id: 5, type: 'pour', title: '第 3 段注水 — 至 180g', waterAmount: 60, duration: 15, desc: '最後注入 60g' },
+          { id: 6, type: 'wait', title: '等待濾完，倒入盛冰杯享用', waterAmount: 0, duration: 50, desc: '約 2:30 濾完立即倒入新冰杯享用' }
+        ]
+      }
+    ];
+
+    // --- Web Audio Synthesizer for beeps and chimes ---
+    class AudioBeep {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      beep(freq = 600, duration = 0.08) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      }
+      stepChime() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const notes = [523.25, 659.25, 783.99];
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
+            gain.gain.setValueAtTime(0, this.ctx.currentTime + idx * 0.08);
+            gain.gain.linearRampToValueAtTime(0.2, this.ctx.currentTime + idx * 0.08 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.08 + 0.3);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.08);
+            osc.stop(this.ctx.currentTime + idx * 0.08 + 0.35);
+          });
+          if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+        } catch (e) {}
+      }
+      finishSound() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const notes = [523.25, 659.25, 783.99, 1046.50];
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.12);
+            gain.gain.setValueAtTime(0, this.ctx.currentTime + idx * 0.12);
+            gain.gain.linearRampToValueAtTime(0.25, this.ctx.currentTime + idx * 0.12 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.12 + 0.6);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.12);
+            osc.stop(this.ctx.currentTime + idx * 0.12 + 0.65);
+          });
+          if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 300]);
+        } catch (e) {}
+      }
+    }
+    const audio = new AudioBeep();
+
+    // --- State Management ---
+    const state = {
+      view: 'library', // 'library' | 'detail' | 'timer'
+      category: 'All',
+      search: '',
+      activeRecipe: RECIPES[0],
+      coffeeAmount: 20,
+      waterAmount: 300,
+      beanName: '未指定豆子',
+      scaledSteps: [],
+      // Timer state
+      currentStepIndex: 0,
+      stepSecondsLeft: 10,
+      totalElapsedSeconds: 0,
+      isRunning: false,
+      isCompleted: false,
+      timerInterval: null,
+      showClassroomTip: false
+    };
+
+    function formatTime(secs) {
+      const m = Math.floor(Math.max(0, secs) / 60);
+      const s = Math.max(0, secs) % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function calculateScaledSteps(recipe, targetWater) {
+      const scale = targetWater / recipe.defaultWater;
+      let accum = 0;
+      return recipe.steps.map((s, idx) => {
+        let sw = 0;
+        if (s.waterAmount > 0) {
+          sw = Math.round(s.waterAmount * scale);
+          accum += sw;
+        }
+        return {
+          ...s,
+          stepNumber: idx + 1,
+          scaledWater: sw,
+          accumulatedWater: accum
+        };
+      });
+    }
+
+    // --- Navigation Handlers ---
+    function openRecipeDetail(recipe) {
+      state.activeRecipe = recipe;
+      state.coffeeAmount = recipe.defaultCoffee;
+      state.waterAmount = recipe.defaultWater;
+      state.scaledSteps = calculateScaledSteps(recipe, recipe.defaultWater);
+      state.view = 'detail';
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    function openTimer() {
+      state.scaledSteps = calculateScaledSteps(state.activeRecipe, state.waterAmount);
+      state.currentStepIndex = 0;
+      state.stepSecondsLeft = state.scaledSteps[0].duration;
+      state.totalElapsedSeconds = 0;
+      state.isRunning = false;
+      state.isCompleted = false;
+      state.view = 'timer';
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    function backToLibrary() {
+      state.view = 'library';
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    function backToDetail() {
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      state.isRunning = false;
+      state.view = 'detail';
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    // --- Timer Engine ---
+    function toggleTimer() {
+      if (state.isCompleted) {
+        // Reset
+        state.currentStepIndex = 0;
+        state.stepSecondsLeft = state.scaledSteps[0].duration;
+        state.totalElapsedSeconds = 0;
+        state.isCompleted = false;
+        state.isRunning = false;
+        render();
+        return;
+      }
+
+      state.isRunning = !state.isRunning;
+      audio.init();
+
+      if (state.isRunning) {
+        state.timerInterval = setInterval(() => {
+          state.totalElapsedSeconds++;
+
+          if (state.stepSecondsLeft <= 4 && state.stepSecondsLeft > 1) {
+            audio.beep(587.33, 0.08);
+          } else if (state.stepSecondsLeft === 1) {
+            audio.beep(880, 0.15);
+          }
+
+          if (state.stepSecondsLeft <= 1) {
+            if (state.currentStepIndex < state.scaledSteps.length - 1) {
+              audio.stepChime();
+              state.currentStepIndex++;
+              state.stepSecondsLeft = state.scaledSteps[state.currentStepIndex].duration;
+            } else {
+              // Completed!
+              clearInterval(state.timerInterval);
+              state.isRunning = false;
+              state.isCompleted = true;
+              state.stepSecondsLeft = 0;
+              audio.finishSound();
+            }
+          } else {
+            state.stepSecondsLeft--;
+          }
+          render();
+        }, 1000);
+      } else {
+        if (state.timerInterval) clearInterval(state.timerInterval);
+      }
+      render();
+    }
+
+    function jumpStep(direction) {
+      const newIdx = state.currentStepIndex + direction;
+      if (newIdx >= 0 && newIdx < state.scaledSteps.length) {
+        state.currentStepIndex = newIdx;
+        state.stepSecondsLeft = state.scaledSteps[newIdx].duration;
+        let elapsed = 0;
+        for (let i = 0; i < newIdx; i++) {
+          elapsed += state.scaledSteps[i].duration;
+        }
+        state.totalElapsedSeconds = elapsed;
+        render();
+      }
+    }
+
+    // --- RENDERERS ---
+
+    // 1. Library View (模板庫)
+    function renderLibrary() {
+      const filtered = RECIPES.filter(r => {
+        const matchCat = state.category === 'All' || r.category === state.category;
+        const matchSearch = r.name.toLowerCase().includes(state.search.toLowerCase()) ||
+                            r.referenceAuthor.toLowerCase().includes(state.search.toLowerCase()) ||
+                            r.summary.toLowerCase().includes(state.search.toLowerCase());
+        return matchCat && matchSearch;
+      });
+
+      return `
+        <div class="px-4 py-5">
+          <!-- Top Title Bar -->
+          <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-[#29231c] border border-[#3d3429] flex items-center justify-center text-[#d4a373] text-lg">
+                ☕
+              </div>
+              <h1 class="text-2xl font-serif-num font-bold text-[#f5efe6] tracking-wide">
+                模板庫
+              </h1>
+            </div>
+            <span class="text-xs text-[#8f8374] px-3 py-1 rounded-full bg-[#1e1a17] border border-[#2e2822]">
+              ${RECIPES.length} 款手沖配方
+            </span>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="relative mb-4">
+            <input
+              type="text"
+              id="searchInput"
+              placeholder="搜尋配方、作者或關鍵字..."
+              value="${state.search}"
+              oninput="state.search = this.value; render();"
+              class="w-full bg-[#1c1a17] border border-[#2e2a25] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#e8e2d8] placeholder-[#736a5e] focus:outline-none focus:border-[#d4a373] transition-colors"
+            />
+            <span class="absolute left-3.5 top-2.5 text-[#807669] text-sm">🔍</span>
+          </div>
+
+          <!-- Filter Pills -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-4 no-scrollbar">
+            ${['All', 'V60', 'Kalita Wave', 'Origami', '冰手沖'].map(cat => `
+              <button
+                onclick="state.category = '${cat}'; render();"
+                class="px-4 py-1.5 text-xs rounded-full whitespace-nowrap transition-all duration-150 ${
+                  state.category === cat
+                    ? 'bg-[#d4a373] text-[#1c140d] font-bold shadow-sm'
+                    : 'bg-[#211e1a] text-[#9c9183] border border-[#2e2924] hover:bg-[#2b2722]'
+                }"
+              >
+                ${cat === 'All' ? '全部配方' : cat}
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- Recipe Cards List -->
+          <div class="space-y-4">
+            ${filtered.map(recipe => {
+              const totalSec = recipe.steps.reduce((acc, s) => acc + s.duration, 0) || recipe.totalTimeSeconds;
+              return `
+                <div class="bg-[#1c1a17] border border-[#2e2a25] hover:border-[#473e33] rounded-2xl p-5 text-left transition-all shadow-md">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-[#292521] text-[#c9bfae] border border-[#3b352e]">
+                      ${recipe.category}
+                    </span>
+                    <span class="text-xs text-[#8f8578] truncate max-w-[190px]">
+                      ${recipe.referenceAuthor}
+                    </span>
+                  </div>
+
+                  <h3 class="text-2xl font-serif-num font-bold text-[#f5efe6] mb-2 tracking-wide">
+                    ${recipe.name}
+                  </h3>
+
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#a89d8f] mb-3">
+                    <span>${recipe.defaultCoffee}g</span>
+                    <span>•</span>
+                    <span>${recipe.defaultWater}g</span>
+                    ${recipe.defaultIce ? `<span>•</span><span class="text-cyan-400">冰塊 ${recipe.defaultIce}g</span>` : ''}
+                    <span>•</span>
+                    <span>${recipe.temperature}°C</span>
+                    <span>•</span>
+                    <span>${formatTime(recipe.totalTimeSeconds)}</span>
+                    <span>•</span>
+                    <span>${recipe.ratio}</span>
+                  </div>
+
+                  <!-- Segmented Timeline Bar -->
+                  <div class="flex items-center gap-1 w-full h-2 mb-4 bg-[#26221d] rounded-full p-0.5 overflow-hidden">
+                    ${recipe.steps.map(step => {
+                      const pct = Math.max(5, (step.duration / totalSec) * 100);
+                      const isPour = step.type === 'pour';
+                      return `<div style="width: ${pct}%" class="h-full rounded-sm ${isPour ? 'bg-[#d4a373]' : 'bg-[#52483d]'}"></div>`;
+                    }).join('')}
+                  </div>
+
+                  <p class="text-sm text-[#cdc4b7] leading-relaxed mb-4">
+                    ${recipe.summary}
+                  </p>
+
+                  <div class="space-y-2 mb-5 text-xs">
+                    <div>
+                      <span class="text-[#a89887] font-semibold block mb-0.5">研磨與風味</span>
+                      <p class="text-[#9e9486] leading-relaxed">${recipe.grindAndFlavor}</p>
+                    </div>
+                    <div>
+                      <span class="text-[#a89887] font-semibold block mb-0.5">豆子搭配</span>
+                      <p class="text-[#9e9486] leading-relaxed">${recipe.beanPairing}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onclick="openRecipeDetail(RECIPES.find(r => r.id === '${recipe.id}'))"
+                    class="w-full py-3.5 px-4 bg-[#d4a373] hover:bg-[#e0b284] active:bg-[#c49261] text-[#1c140d] font-bold text-sm rounded-xl transition-all duration-150 flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <span>開始沖煮</span>
+                    <span>➔</span>
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="mt-8 pt-6 border-t border-[#26221d] text-center text-xs text-[#6b6256] leading-relaxed space-y-1.5">
+            <p>參數依各作者公開發表的配方整理。請依烘焙度與口味調整粉量、水溫與研磨度。</p>
+            <p>內建沖煮模板僅供學習與參考。個人專屬手沖 PWA 工具。</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. Detail View (準備這一杯)
+    function renderDetail() {
+      const r = state.activeRecipe;
+      const baseRatio = r.defaultWater / r.defaultCoffee;
+
+      return `
+        <div class="min-h-screen bg-[#151311] text-[#e4ded7] pb-28">
+          <!-- Top bar -->
+          <div class="sticky top-0 z-20 bg-[#151311]/95 backdrop-blur border-b border-[#292520] px-4 py-3.5 flex items-center justify-between">
+            <button
+              onclick="backToLibrary()"
+              class="p-2 -ml-2 rounded-full hover:bg-[#26221d] text-[#b3a898] text-lg font-bold"
+            >
+              ❮
+            </button>
+            <h2 class="text-sm font-medium text-[#d9d0c5]">準備這一杯</h2>
+            <div class="w-8"></div>
+          </div>
+
+          <div class="px-5 pt-4 text-left">
+            <h1 class="text-3xl font-serif-num font-bold text-[#f5efe6] mb-1">
+              沖一杯${r.name}
+            </h1>
+            <p class="text-base font-serif-num text-[#d4a373] mb-2">${r.name}</p>
+            <div class="flex flex-wrap items-center gap-2 text-xs text-[#a39788] mb-6">
+              <span>${r.defaultCoffee} g</span>
+              <span>•</span>
+              <span>${r.defaultWater} g</span>
+              ${r.defaultIce ? `<span>•</span><span class="text-cyan-400">冰塊 ${r.defaultIce} g</span>` : ''}
+              <span>•</span>
+              <span>${r.temperature} °C</span>
+              <span>•</span>
+              <span>${formatTime(r.totalTimeSeconds)}</span>
+            </div>
+
+            <!-- Bean Selector -->
+            <div class="mb-6">
+              <p class="text-xs text-[#8f8578] mb-2">
+                豆子可以稍後再填，現在不選也能沖。
+              </p>
+              <button
+                onclick="const val = prompt('請輸入咖啡豆名稱：', state.beanName === '未指定豆子' ? '' : state.beanName); if(val !== null) { state.beanName = val.trim() || '未指定豆子'; render(); }"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2b2621] hover:bg-[#38312b] border border-[#3d362e] text-xs text-[#cfc5b6]"
+              >
+                <span>🌱</span>
+                <span>${state.beanName}</span>
+                <span class="text-[10px] text-[#8c8072]">✎ 點此更換</span>
+              </button>
+            </div>
+
+            <!-- Dynamic Scaling Calculator -->
+            <div class="bg-[#1c1a17] border border-[#2b2722] rounded-2xl p-5 mb-6 shadow-md">
+              <h3 class="text-base font-serif-num font-bold text-[#f5efe6] mb-1.5">
+                調整這一杯
+              </h3>
+              <p class="text-xs text-[#8c8274] leading-relaxed mb-4">
+                改粉量或總水量，另一項與每段注水會依原配方比例自動換算。只調整這次沖煮，不修改原配方。
+              </p>
+
+              <div class="grid grid-cols-2 gap-4 mb-3">
+                <div class="bg-[#151311] border border-[#332e27] rounded-xl p-3 focus-within:border-[#d4a373]">
+                  <label class="block text-[11px] text-[#8a7f72] mb-1">粉量 (G)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value="${state.coffeeAmount}"
+                    onchange="
+                      const val = parseFloat(this.value);
+                      if (val > 0) {
+                        state.coffeeAmount = val;
+                        state.waterAmount = Math.round(val * ${baseRatio});
+                        state.scaledSteps = calculateScaledSteps(state.activeRecipe, state.waterAmount);
+                        render();
+                      }
+                    "
+                    class="w-full bg-transparent font-serif-num text-2xl text-[#f5efe6] focus:outline-none"
+                  />
+                </div>
+
+                <div class="bg-[#151311] border border-[#332e27] rounded-xl p-3 focus-within:border-[#d4a373]">
+                  <label class="block text-[11px] text-[#8a7f72] mb-1">總水量 (G)</label>
+                  <input
+                    type="number"
+                    step="5"
+                    value="${state.waterAmount}"
+                    onchange="
+                      const val = parseFloat(this.value);
+                      if (val > 0) {
+                        state.waterAmount = val;
+                        state.coffeeAmount = Math.round((val / ${baseRatio}) * 10) / 10;
+                        state.scaledSteps = calculateScaledSteps(state.activeRecipe, val);
+                        render();
+                      }
+                    "
+                    class="w-full bg-transparent font-serif-num text-2xl text-[#f5efe6] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div class="text-xs text-[#8a7f72] flex items-center justify-between">
+                <span>維持原配方粉水比 ${r.ratio}</span>
+                ${state.coffeeAmount !== r.defaultCoffee ? `
+                  <button
+                    onclick="
+                      state.coffeeAmount = ${r.defaultCoffee};
+                      state.waterAmount = ${r.defaultWater};
+                      state.scaledSteps = calculateScaledSteps(state.activeRecipe, ${r.defaultWater});
+                      render();
+                    "
+                    class="text-[#d4a373] underline text-xs"
+                  >
+                    重設回預設
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- Steps List -->
+            <div class="mb-6">
+              <h3 class="text-base font-serif-num font-bold text-[#f5efe6] mb-3">
+                本次沖煮步驟
+              </h3>
+
+              <div class="divide-y divide-[#26221d] border-t border-b border-[#26221d]">
+                ${state.scaledSteps.map(step => `
+                  <div class="py-3.5 flex flex-col gap-1">
+                    <span class="text-sm font-medium text-[#e8e2d8]">
+                      步驟 ${step.stepNumber} · ${step.title}
+                    </span>
+                    <div class="text-xs text-[#8c8275] flex items-center gap-2">
+                      ${step.type === 'wait' || step.scaledWater === 0 ? `
+                        <span>等待 ${formatTime(step.duration)}</span>
+                      ` : `
+                        <span class="text-[#d4a373] font-medium">本段 +${step.scaledWater}g</span>
+                        <span>•</span>
+                        <span>累計注水 ${step.accumulatedWater}g</span>
+                        <span>•</span>
+                        <span>${formatTime(step.duration)}</span>
+                      `}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+
+              <p class="text-xs text-[#7d7367] mt-3.5 leading-relaxed">
+                水溫與步驟時間沿用原配方，實際流速可視豆子與器材調整。用量會四捨五入。
+              </p>
+            </div>
+          </div>
+
+          <!-- Bottom Action Button -->
+          <div class="fixed bottom-0 left-0 right-0 p-4 bg-[#151311]/95 backdrop-blur-md border-t border-[#292520] z-20">
+            <div class="max-w-md mx-auto flex flex-col gap-1.5">
+              <button
+                onclick="openTimer()"
+                class="w-full py-4 px-6 bg-[#d4a373] hover:bg-[#e0b284] active:bg-[#c49261] text-[#1a130b] font-serif-num font-bold text-lg rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <span>▶</span>
+                <span>開始計時</span>
+              </button>
+              <span class="text-xs text-[#786e62] text-center">
+                計時完成會保存參數，評分與心得可以稍後補。
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 3. Timer View (沖煮計時器 — 100% 還原 IMG_6872)
+    function renderTimer() {
+      const step = state.scaledSteps[state.currentStepIndex] || state.scaledSteps[0];
+      const nextStep = state.scaledSteps[state.currentStepIndex + 1] || null;
+      const totalBrewSecs = state.scaledSteps.reduce((acc, s) => acc + s.duration, 0);
+
+      // SVG Circle Progress
+      const radius = 130;
+      const circ = 2 * Math.PI * radius;
+      const progress = (step.duration - state.stepSecondsLeft) / (step.duration || 1);
+      const dashoffset = circ - progress * circ;
+
+      // Status title inside circle
+      let statusText = '等待中';
+      if (step.type === 'pour') {
+        statusText = `注水至 ${step.accumulatedWater}g`;
+      } else if (step.type === 'stir') {
+        statusText = '攪拌 / 搖晃中';
+      }
+
+      return `
+        <div class="fixed inset-0 z-50 bg-[#121110] text-[#e8e2d8] flex flex-col justify-between overflow-y-auto">
+          <!-- Top Bar -->
+          <div class="px-5 pt-4 pb-2 flex items-center justify-between">
+            <button
+              onclick="if(state.isRunning){ if(confirm('確定要結束沖煮計時嗎？')) backToDetail(); } else backToDetail();"
+              class="w-10 h-10 rounded-full bg-[#24201c] hover:bg-[#332c25] flex items-center justify-center text-[#9c9183] text-lg font-bold"
+            >
+              ✕
+            </button>
+
+            <div class="px-4 py-1.5 rounded-full bg-[#24201c] text-[#dfd6c8] text-xs font-medium tracking-wider border border-[#302b25]">
+              第 ${state.currentStepIndex + 1} / ${state.scaledSteps.length} 步
+            </div>
+
+            <button
+              onclick="audio.enabled = !audio.enabled; render();"
+              class="w-10 h-10 rounded-full bg-[#24201c] hover:bg-[#332c25] flex items-center justify-center text-[#9c9183]"
+            >
+              ${audio.enabled ? '🔊' : '🔇'}
+            </button>
+          </div>
+
+          <!-- Big Circular Countdown Timer (IMG_6872) -->
+          <div class="flex-1 flex flex-col items-center justify-center px-6 py-2">
+            <div class="relative w-72 h-72 flex items-center justify-center my-2">
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 300 300">
+                <circle cx="150" cy="150" r="${radius}" fill="transparent" stroke="#2e2720" stroke-width="4.5" />
+                <circle
+                  cx="150"
+                  cy="150"
+                  r="${radius}"
+                  fill="transparent"
+                  stroke="#d4a373"
+                  stroke-width="5"
+                  stroke-dasharray="${circ}"
+                  stroke-dashoffset="${dashoffset}"
+                  stroke-linecap="round"
+                  class="transition-all duration-300 ease-linear"
+                />
+              </svg>
+
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span class="text-sm font-medium text-[#b0a494] mb-1 tracking-wide">
+                  ${statusText}
+                </span>
+
+                <span class="font-serif-num text-6xl font-light text-[#f7f2ea] tracking-tight leading-none my-1">
+                  ${formatTime(state.stepSecondsLeft)}
+                </span>
+
+                <span class="text-xs text-[#8c8071] tracking-widest mt-2 font-mono">
+                  ${formatTime(state.totalElapsedSeconds)} / ${formatTime(totalBrewSecs)}
+                </span>
+              </div>
+            </div>
+
+            <!-- Target Weight on Scale -->
+            <div class="text-center my-3">
+              <div class="text-xs text-[#9c9183] tracking-wider mb-1">秤上應為</div>
+              <div class="flex items-baseline justify-center gap-1 font-serif-num">
+                <span class="text-5xl font-normal text-[#d4a373]">${step.accumulatedWater}</span>
+                <span class="text-2xl text-[#d4a373] mr-2">g</span>
+                <span class="text-lg text-[#665e53]">/</span>
+                <span class="text-lg text-[#857b6f] ml-1">${state.waterAmount} g</span>
+              </div>
+            </div>
+
+            <!-- Next Step Preview Pill -->
+            ${nextStep ? `
+              <div class="mt-2 px-5 py-2 rounded-full bg-[#1e1b18] border border-[#2e2923] text-xs text-[#b8ad9e] flex items-center gap-2 max-w-sm truncate">
+                <span class="text-[#8c8072]">接下來</span>
+                <span>•</span>
+                <span class="truncate">${nextStep.scaledWater > 0 ? `注水至 ${nextStep.accumulatedWater}g` : nextStep.title}</span>
+                <span>•</span>
+                <span class="text-[#8c8072]">${nextStep.duration}s</span>
+              </div>
+            ` : `
+              <div class="mt-2 px-4 py-1.5 rounded-full bg-[#1e1b18] border border-[#2e2923] text-xs text-[#8c8072]">
+                最後一步 · 享受咖啡香氣
+              </div>
+            `}
+
+            <!-- Step Tip Link -->
+            <button
+              onclick="state.showClassroomTip = !state.showClassroomTip; render();"
+              class="mt-3 text-xs text-[#8c8072] hover:text-[#d4a373] flex items-center gap-1.5 transition-colors"
+            >
+              <span>ⓘ</span>
+              <span>看不懂這些參數？到手沖小教室</span>
+            </button>
+
+            ${state.showClassroomTip ? `
+              <div class="mt-2 p-3 bg-[#1c1916] border border-[#332c25] rounded-xl text-xs text-[#a89d8f] max-w-xs text-left leading-relaxed">
+                <p class="font-medium text-[#d4a373] mb-1">${state.activeRecipe.name} · 手法提示</p>
+                <p>${step.desc || state.activeRecipe.grindAndFlavor}</p>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Bottom Timeline Segment Bar -->
+          <div class="px-6 pb-2">
+            <div class="flex items-center gap-1 w-full h-1.5 mb-1.5 bg-[#211e1a] rounded-full overflow-hidden">
+              ${state.scaledSteps.map((s, idx) => `
+                <div
+                  style="flex: ${s.duration}"
+                  class="h-full rounded-full transition-all duration-300 ${
+                    idx === state.currentStepIndex
+                      ? 'bg-[#d4a373]'
+                      : idx < state.currentStepIndex
+                      ? 'bg-[#82674e]'
+                      : 'bg-[#332c25]'
+                  }"
+                ></div>
+              `).join('')}
+            </div>
+            <div class="flex items-center justify-between text-xs text-[#786d60] font-mono px-0.5">
+              <span>${step.title}</span>
+              <span>+${step.duration}s</span>
+            </div>
+          </div>
+
+          <!-- Bottom Play / Pause / Navigation Buttons -->
+          <div class="px-8 pb-8 pt-2 flex items-center justify-center gap-8">
+            <button
+              onclick="jumpStep(-1)"
+              ${state.currentStepIndex === 0 ? 'disabled' : ''}
+              class="w-14 h-14 rounded-full bg-[#24201c] flex items-center justify-center text-[#d4a373] text-xl font-bold transition-all ${
+                state.currentStepIndex === 0 ? 'opacity-25 cursor-not-allowed' : 'hover:bg-[#332c25] active:scale-95'
+              }"
+            >
+              ❮
+            </button>
+
+            <button
+              onclick="toggleTimer()"
+              class="w-20 h-20 rounded-full bg-[#d4a373] hover:bg-[#e0b284] active:scale-95 text-[#140e08] flex items-center justify-center btn-gold-glow transition-all"
+            >
+              <span class="text-3xl font-bold">
+                ${state.isCompleted ? '↺' : state.isRunning ? '❚❚' : '▶'}
+              </span>
+            </button>
+
+            <button
+              onclick="jumpStep(1)"
+              ${state.currentStepIndex === state.scaledSteps.length - 1 ? 'disabled' : ''}
+              class="w-14 h-14 rounded-full bg-[#24201c] flex items-center justify-center text-[#d4a373] text-xl font-bold transition-all ${
+                state.currentStepIndex === state.scaledSteps.length - 1 ? 'opacity-25 cursor-not-allowed' : 'hover:bg-[#332c25] active:scale-95'
+              }"
+            >
+              ❯
+            </button>
+          </div>
+
+          <!-- Completed Finish Overlay -->
+          ${state.isCompleted ? `
+            <div class="absolute inset-0 z-50 bg-[#121110]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+              <div class="w-16 h-16 rounded-full bg-[#2d241c] border border-[#d4a373] flex items-center justify-center text-3xl mb-4 text-[#d4a373]">
+                🏆
+              </div>
+
+              <h2 class="text-3xl font-serif-num font-bold text-[#f5efe6] mb-2">
+                沖煮完成！
+              </h2>
+              <p class="text-xs text-[#a39788] mb-6">
+                享受這杯精心萃取的 ${state.activeRecipe.name}
+              </p>
+
+              <div class="w-full max-w-xs bg-[#1c1a17] border border-[#2b2722] rounded-2xl p-4 mb-6 text-left space-y-2 text-xs">
+                <div class="flex justify-between text-[#8f8578]">
+                  <span>使用配方</span>
+                  <span class="text-[#e8e2d8] font-medium">${state.activeRecipe.name}</span>
+                </div>
+                <div class="flex justify-between text-[#8f8578]">
+                  <span>咖啡豆</span>
+                  <span class="text-[#e8e2d8] font-medium">${state.beanName}</span>
+                </div>
+                <div class="flex justify-between text-[#8f8578]">
+                  <span>粉水參數</span>
+                  <span class="text-[#d4a373] font-medium font-mono">${state.coffeeAmount}g / ${state.waterAmount}g</span>
+                </div>
+                <div class="flex justify-between text-[#8f8578]">
+                  <span>總沖煮時間</span>
+                  <span class="text-[#e8e2d8] font-medium font-mono">${formatTime(state.totalElapsedSeconds)}</span>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-3 w-full max-w-xs">
+                <button
+                  onclick="toggleTimer()"
+                  class="w-full py-3.5 bg-[#2b2621] hover:bg-[#38312b] text-[#d4a373] font-medium text-xs rounded-xl border border-[#3d362e]"
+                >
+                  再次沖煮
+                </button>
+                <button
+                  onclick="backToLibrary()"
+                  class="w-full py-3.5 bg-[#d4a373] hover:bg-[#e0b284] text-[#1a130b] font-bold text-xs rounded-xl shadow-lg"
+                >
+                  完成並返回模板庫
+                </button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      if (state.view === 'library') {
+        app.innerHTML = renderLibrary();
+      } else if (state.view === 'detail') {
+        app.innerHTML = renderDetail();
+      } else if (state.view === 'timer') {
+        app.innerHTML = renderTimer();
+      }
+    }
+
+    // Initial render
+    state.scaledSteps = calculateScaledSteps(state.activeRecipe, state.waterAmount);
+    render();
+  </script>
+</body>
+</html>
