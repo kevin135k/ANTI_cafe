@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  font-size: 18px;
   color-scheme: dark;
   background-color: #151311;
   color: #e8e2d8;
@@ -17,6 +18,7 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   touch-action: manipulation;
+  overscroll-behavior-y: none;
 }
 
 /* Hide scrollbar for category pills */

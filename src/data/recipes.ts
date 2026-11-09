@@ -5,7 +5,7 @@ export const RECIPES: Recipe[] = [
     id: 'classic-v60',
     name: '經典 V60',
     category: 'V60',
-    referenceAuthor: 'Pourline 新手配方',
+    referenceAuthor: '新手配方',
     defaultCoffee: 20,
     defaultWater: 300,
     temperature: 93,
