@@ -1,0 +1,18 @@
+{
+  "name": "Anti Cafe 手沖咖啡配方與計時器",
+  "short_name": "Anti Cafe",
+  "description": "專業手沖咖啡配方庫、動態粉水比換算與步驟計時指引 PWA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121110",
+  "theme_color": "#121110",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

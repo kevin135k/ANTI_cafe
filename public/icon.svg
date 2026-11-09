@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#151311" />
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#d4a373" stroke-width="12" stroke-opacity="0.3" />
+  <circle cx="256" cy="256" r="180" fill="#1c1916" stroke="#d4a373" stroke-width="8" />
+  <!-- Coffee cup silhouette -->
+  <path d="M160 210 h150 c16 0 30 14 30 30 v30 c0 45 -35 80 -80 80 h-20 c-45 0 -80 -35 -80 -80 v-60 z" fill="#d4a373" />
+  <path d="M340 230 h25 c14 0 25 11 25 25 v10 c0 14 -11 25 -25 25 h-25 z" fill="none" stroke="#d4a373" stroke-width="14" stroke-linecap="round" />
+  <path d="M190 170 c0 -20 15 -25 15 -45" stroke="#d4a373" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.7" />
+  <path d="M235 160 c0 -20 15 -25 15 -45" stroke="#d4a373" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.9" />
+  <path d="M280 170 c0 -20 15 -25 15 -45" stroke="#d4a373" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.7" />
+</svg>
