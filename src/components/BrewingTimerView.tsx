@@ -12,7 +12,6 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Info,
   Award
 } from 'lucide-react';
 
@@ -21,7 +20,6 @@ interface BrewingTimerViewProps {
   coffeeAmount: number;
   waterAmount: number;
   scaledSteps: ScaledStep[];
-  beanName?: string;
   onClose: () => void;
 }
 
@@ -46,8 +44,8 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
   const [isMuted, setIsMuted] = useState<boolean>(!sound.enabled);
   // Has finished all steps
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
-  // Show tip modal / accordion
-  const [showTip, setShowTip] = useState<boolean>(false);
+  // Step transition slide animation trigger
+  const [slideKey, setSlideKey] = useState<number>(0);
 
   // Total duration of entire recipe
   const totalBrewSeconds = scaledSteps.reduce((acc, s) => acc + s.duration, 0) || 1;
@@ -85,6 +83,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
               sound.playStepChime();
               const nextIndex = currentStepIndex + 1;
               setCurrentStepIndex(nextIndex);
+              setSlideKey((k) => k + 1); // trigger sliding push animation
               return scaledSteps[nextIndex].duration;
             } else {
               // Brewing completed!
@@ -120,6 +119,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
   const handleJumpStep = (newIndex: number) => {
     if (newIndex >= 0 && newIndex < scaledSteps.length) {
       setCurrentStepIndex(newIndex);
+      setSlideKey((k) => k + 1);
       setStepSecondsLeft(scaledSteps[newIndex].duration);
       let elapsed = 0;
       for (let i = 0; i < newIndex; i++) {
@@ -134,6 +134,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
     setIsRunning(false);
     setIsCompleted(false);
     setCurrentStepIndex(0);
+    setSlideKey(0);
     setStepSecondsLeft(scaledSteps[0].duration);
     setTotalElapsedSeconds(0);
   };
@@ -148,7 +149,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
   // SVG Circular progress calculation
   const currentStepDuration = currentStep.duration || 1;
   const progressRatio = (currentStepDuration - stepSecondsLeft) / currentStepDuration;
-  const radius = 135;
+  const radius = 120; // Sized for standard iPhone 6.1" screen
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - progressRatio * circumference;
 
@@ -158,21 +159,32 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
     (totalElapsedSeconds / totalBrewSeconds) * 100
   );
 
-  // Determine current step status text
-  const getStepStatusText = () => {
+  // Formatted labels for Now & Next
+  const getNowLabel = () => {
     if (currentStep.type === 'wait') {
-      return '等待中';
+      return currentStep.title;
     } else if (currentStep.type === 'stir' || currentStep.type === 'swirl') {
-      return '攪拌 / 搖晃中';
+      return currentStep.title;
     } else {
       return `注水至 ${currentStep.accumulatedWater}g`;
     }
   };
 
+  const getNextLabel = () => {
+    if (!nextStep) return '即將完成 · 享受咖啡香氣';
+    if (nextStep.type === 'wait') {
+      return nextStep.title;
+    } else if (nextStep.scaledWater > 0) {
+      return `注水至 ${nextStep.accumulatedWater}g (${nextStep.duration}s)`;
+    } else {
+      return `${nextStep.title} (${nextStep.duration}s)`;
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-[#121110] text-[#e8e2d8] flex flex-col justify-between overflow-y-auto select-none">
-      {/* Top Bar (matches IMG_6872) */}
-      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 bg-[#121110] text-[#e8e2d8] flex flex-col justify-between overflow-y-auto select-none safe-top safe-bottom">
+      {/* Top Bar with iPhone Status Bar clearance */}
+      <div className="px-5 pt-2 pb-1 flex items-center justify-between">
         {/* Close Button */}
         <button
           onClick={() => {
@@ -184,47 +196,45 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
               onClose();
             }
           }}
-          className="w-11 h-11 rounded-full bg-[#24201c] hover:bg-[#332c25] flex items-center justify-center text-[#9c9183] transition-colors"
+          className="w-10 h-10 rounded-full liquid-glass-secondary flex items-center justify-center text-[#d4a373] transition-colors cursor-pointer"
           aria-label="離開"
         >
-          <X size={22} />
+          <X size={20} />
         </button>
 
         {/* Step Capsule Badge */}
-        <div className="px-4 py-1.5 rounded-full bg-[#24201c] text-[#dfd6c8] text-sm font-medium tracking-wider border border-[#302b25]">
+        <div className="px-4 py-1.5 rounded-full liquid-glass-secondary text-[#dfd6c8] text-xs font-medium tracking-wider">
           第 {currentStepIndex + 1} / {scaledSteps.length} 步
         </div>
 
         {/* Sound Toggle Button */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleToggleMute}
-            className="w-11 h-11 rounded-full bg-[#24201c] hover:bg-[#332c25] flex items-center justify-center text-[#9c9183] transition-colors"
-            aria-label={isMuted ? '開啟聲音' : '靜音'}
-          >
-            {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-          </button>
-        </div>
+        <button
+          onClick={handleToggleMute}
+          className="w-10 h-10 rounded-full liquid-glass-secondary flex items-center justify-center text-[#d4a373] transition-colors cursor-pointer"
+          aria-label={isMuted ? '開啟聲音' : '靜音'}
+        >
+          {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </button>
       </div>
 
       {/* Main Center Area */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-2">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-1">
         {/* Big Circular Countdown Ring */}
-        <div className="relative w-76 h-76 sm:w-84 sm:h-84 flex items-center justify-center my-3">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 300 300">
+        <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-2">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 280 280">
             {/* Background Circle */}
             <circle
-              cx="150"
-              cy="150"
+              cx="140"
+              cy="140"
               r={radius}
               fill="transparent"
-              stroke="#2e2720"
+              stroke="#26211c"
               strokeWidth="5"
             />
             {/* Animated Progress Circle */}
             <circle
-              cx="150"
-              cy="150"
+              cx="140"
+              cy="140"
               r={radius}
               fill="transparent"
               stroke="#d4a373"
@@ -236,92 +246,70 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
             />
           </svg>
 
-          {/* Texts Inside the Circle */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            {/* Action State Title */}
-            <span className="text-base font-medium text-[#b0a494] mb-1 tracking-wide">
-              {getStepStatusText()}
+          {/* Large Serif Countdown Numbers inside Circle */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+            <span className="text-xs text-[#8c8071] tracking-widest uppercase mb-0.5">
+              本段倒數
             </span>
-
-            {/* Countdown Large Serif Numbers */}
-            <span className="font-serif text-7xl sm:text-8xl font-light text-[#f7f2ea] tracking-tight leading-none my-1">
+            <span className="font-serif-num text-6xl sm:text-7xl font-light text-[#f7f2ea] tracking-tight leading-none my-1">
               {formatTime(stepSecondsLeft)}
             </span>
-
-            {/* Elapsed / Total Time */}
-            <span className="text-sm text-[#8c8071] tracking-widest mt-2 font-mono">
+            <span className="text-xs text-[#8c8071] tracking-wider mt-1 font-mono">
               {formatTime(totalElapsedSeconds)} / {formatTime(totalBrewSeconds)}
             </span>
           </div>
         </div>
 
-        {/* Target Weight on Scale */}
-        <div className="text-center my-3">
-          <div className="text-sm text-[#9c9183] tracking-wider mb-1">
-            秤上應為
+        {/* Dynamic Now & Next Push-Transition Area (圓圈下方) */}
+        <div className="w-full max-w-xs text-center my-2 min-h-[70px] flex flex-col justify-center overflow-hidden">
+          {/* Keyed container for push-up transition */}
+          <div key={slideKey} className="step-slide-in flex flex-col items-center">
+            {/* Line 1: Bold theme color "Now: <當前操作提示>" */}
+            <div className="text-base sm:text-lg font-bold text-[#d4a373] tracking-wide flex items-center justify-center gap-1.5">
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-[#d4a373]/20 text-[#d4a373] font-semibold">
+                NOW
+              </span>
+              <span>{getNowLabel()}</span>
+            </div>
+
+            {/* Line 2: Subtle gray "Next: <下一步提示>" */}
+            <div className="text-xs sm:text-sm text-[#8c8274] tracking-normal mt-1 flex items-center justify-center gap-1.5">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#2b251f] text-[#8c8274]">
+                NEXT
+              </span>
+              <span className="truncate max-w-[240px]">{getNextLabel()}</span>
+            </div>
           </div>
-          <div className="flex items-baseline justify-center gap-1.5 font-serif">
-            <span className="text-5xl sm:text-6xl font-normal text-[#d4a373]">
+        </div>
+
+        {/* Line 3: Target Weight on Scale (秤上應為) */}
+        <div className="text-center my-1.5 py-1 px-4 rounded-2xl bg-[#181512] border border-[#2b2620] inline-flex flex-col items-center">
+          <span className="text-[11px] text-[#8f8578] tracking-wider">
+            秤上應為
+          </span>
+          <div className="flex items-baseline justify-center gap-1 font-serif-num">
+            <span className="text-3xl sm:text-4xl font-bold text-[#f5efe6]">
               {currentStep.accumulatedWater}
             </span>
-            <span className="text-3xl text-[#d4a373] mr-2">g</span>
-            <span className="text-xl text-[#665e53]">/</span>
-            <span className="text-xl text-[#857b6f] ml-1">
+            <span className="text-base text-[#d4a373] font-sans font-medium mr-1.5">g</span>
+            <span className="text-sm text-[#595147]">/</span>
+            <span className="text-sm text-[#857b6f] ml-1.5">
               {waterAmount} g
             </span>
           </div>
         </div>
-
-        {/* Next Step Preview Capsule */}
-        {nextStep ? (
-          <div className="mt-2 px-5 py-2.5 rounded-full bg-[#1e1b18] border border-[#2e2923] text-sm text-[#b8ad9e] flex items-center gap-2 max-w-sm truncate">
-            <span className="text-[#8c8072]">接下來</span>
-            <span>•</span>
-            <span className="truncate">
-              {nextStep.scaledWater > 0
-                ? `注水至 ${nextStep.accumulatedWater}g`
-                : nextStep.title}
-            </span>
-            <span>•</span>
-            <span className="text-[#8c8072]">{nextStep.duration}s</span>
-          </div>
-        ) : (
-          <div className="mt-2 px-5 py-2 rounded-full bg-[#1e1b18] border border-[#2e2923] text-sm text-[#8c8072]">
-            最後一步 · 享受咖啡香氣
-          </div>
-        )}
-
-        {/* Tip Button */}
-        <button
-          onClick={() => setShowTip(!showTip)}
-          className="mt-3 text-sm text-[#8c8072] hover:text-[#d4a373] flex items-center gap-1.5 transition-colors"
-        >
-          <Info size={15} />
-          <span>沖煮小技巧：{currentStep.title}</span>
-        </button>
-
-        {showTip && (
-          <div className="mt-2 p-3.5 bg-[#1c1916] border border-[#332c25] rounded-xl text-sm text-[#a89d8f] max-w-sm text-left leading-relaxed">
-            <p className="font-medium text-[#d4a373] mb-1">{recipe.name} · 手法提示</p>
-            <p>{currentStep.description || recipe.grindAndFlavor}</p>
-          </div>
-        )}
       </div>
 
-      {/* Video-style Progress Bar (按秒數逐漸由淺灰色變主題色) */}
+      {/* Video-style Progress Bar */}
       <div className="px-6 pb-2">
-        {/* Progress Track */}
-        <div className="relative w-full h-3 mb-2 bg-[#332d26] rounded-full overflow-hidden shadow-inner">
-          {/* Active Progress Fill */}
+        <div className="relative w-full h-2.5 mb-2 bg-[#2d2721] rounded-full overflow-hidden shadow-inner">
           <div
             style={{
               width: `${overallProgressPercent}%`,
               transition: isRunning ? 'width 1s linear' : 'width 0.3s ease-out',
             }}
-            className="h-full rounded-full bg-gradient-to-r from-[#b3824f] via-[#d4a373] to-[#e4b689] shadow-[0_0_12px_rgba(212,163,115,0.6)]"
+            className="h-full rounded-full bg-gradient-to-r from-[#b3824f] via-[#d4a373] to-[#e4b689] shadow-[0_0_10px_rgba(212,163,115,0.6)]"
           />
-
-          {/* Step Boundary Markers on Track */}
           <div className="absolute inset-0 flex justify-between pointer-events-none">
             {scaledSteps.map((_, idx) => {
               if (idx === 0) return null;
@@ -332,14 +320,13 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
                 <div
                   key={idx}
                   style={{ left: `${markPercent}%` }}
-                  className="absolute top-0 bottom-0 w-[1.5px] bg-[#121110]/60 z-10"
+                  className="absolute top-0 bottom-0 w-[1.5px] bg-[#121110]/80 z-10"
                 />
               );
             })}
           </div>
         </div>
 
-        {/* Labels under Progress Bar */}
         <div className="flex items-center justify-between text-xs text-[#8c8071] font-mono px-0.5">
           <span className="text-[#d4a373] font-sans font-medium">
             步驟 {currentStepIndex + 1}: {currentStep.title}
@@ -350,23 +337,23 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
         </div>
       </div>
 
-      {/* Bottom Controls (matches IMG_6872) */}
-      <div className="px-8 pb-8 pt-3 flex items-center justify-center gap-8">
+      {/* Bottom Controls */}
+      <div className="px-8 pb-4 pt-1 flex items-center justify-center gap-7">
         {/* Previous Step Button */}
         <button
           onClick={() => handleJumpStep(currentStepIndex - 1)}
           disabled={currentStepIndex === 0}
-          className={`w-14 h-14 rounded-full bg-[#24201c] flex items-center justify-center text-[#d4a373] transition-all ${
+          className={`w-13 h-13 rounded-full liquid-glass-secondary flex items-center justify-center text-[#d4a373] transition-all ${
             currentStepIndex === 0
-              ? 'opacity-30 cursor-not-allowed'
-              : 'hover:bg-[#332c25] active:scale-95'
+              ? 'opacity-25 cursor-not-allowed'
+              : 'cursor-pointer active:scale-95'
           }`}
           aria-label="上一步"
         >
-          <ChevronLeft size={26} />
+          <ChevronLeft size={24} />
         </button>
 
-        {/* Center Main Play / Pause Glowing Button */}
+        {/* Center Main Play / Pause Glowing Button (Liquid Glass) */}
         <button
           onClick={() => {
             if (isCompleted) {
@@ -375,15 +362,15 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
               setIsRunning(!isRunning);
             }
           }}
-          className="w-20 h-20 rounded-full bg-[#d4a373] hover:bg-[#e0b284] active:scale-95 text-[#140e08] flex items-center justify-center shadow-lg shadow-[#d4a373]/30 transition-all duration-200 cursor-pointer"
+          className="w-18 h-18 rounded-full liquid-glass text-[#140e08] flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer shadow-lg"
           aria-label={isRunning ? '暫停' : '開始'}
         >
           {isCompleted ? (
-            <RotateCcw size={32} />
+            <RotateCcw size={28} />
           ) : isRunning ? (
-            <Pause size={34} fill="currentColor" />
+            <Pause size={30} fill="currentColor" />
           ) : (
-            <Play size={34} fill="currentColor" className="ml-1" />
+            <Play size={30} fill="currentColor" className="ml-1" />
           )}
         </button>
 
@@ -391,32 +378,32 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
         <button
           onClick={() => handleJumpStep(currentStepIndex + 1)}
           disabled={currentStepIndex === scaledSteps.length - 1}
-          className={`w-14 h-14 rounded-full bg-[#24201c] flex items-center justify-center text-[#d4a373] transition-all ${
+          className={`w-13 h-13 rounded-full liquid-glass-secondary flex items-center justify-center text-[#d4a373] transition-all ${
             currentStepIndex === scaledSteps.length - 1
-              ? 'opacity-30 cursor-not-allowed'
-              : 'hover:bg-[#332c25] active:scale-95'
+              ? 'opacity-25 cursor-not-allowed'
+              : 'cursor-pointer active:scale-95'
           }`}
           aria-label="下一步"
         >
-          <ChevronRight size={26} />
+          <ChevronRight size={24} />
         </button>
       </div>
 
       {/* Completion Modal */}
       {isCompleted && (
-        <div className="absolute inset-0 z-50 bg-[#121110]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-          <div className="w-18 h-18 rounded-full bg-[#2d241c] border border-[#d4a373] flex items-center justify-center text-[#d4a373] mb-4">
-            <Award size={42} />
+        <div className="absolute inset-0 z-50 bg-[#121110]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in safe-top safe-bottom">
+          <div className="w-16 h-16 rounded-full bg-[#2d241c] border border-[#d4a373] flex items-center justify-center text-[#d4a373] mb-3">
+            <Award size={36} />
           </div>
 
-          <h2 className="text-3xl sm:text-4xl font-serif font-bold text-[#f5efe6] mb-2">
+          <h2 className="text-2xl sm:text-3xl font-serif-num font-bold text-[#f5efe6] mb-1.5">
             沖煮完成！
           </h2>
-          <p className="text-base text-[#a39788] mb-6">
+          <p className="text-sm text-[#a39788] mb-5">
             享受這杯精心萃取的 {recipe.name}
           </p>
 
-          <div className="w-full max-w-sm bg-[#1c1a17] border border-[#2b2722] rounded-2xl p-5 mb-6 text-left space-y-2.5 text-sm">
+          <div className="w-full max-w-xs bg-[#1c1a17] border border-[#2b2722] rounded-2xl p-4 mb-5 text-left space-y-2 text-xs sm:text-sm">
             <div className="flex justify-between text-[#8f8578]">
               <span>使用配方</span>
               <span className="text-[#e8e2d8] font-medium">{recipe.name}</span>
@@ -435,16 +422,16 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 w-full max-w-sm">
+          <div className="flex flex-col gap-3 w-full max-w-xs">
             <button
               onClick={handleReset}
-              className="w-full py-4 bg-[#2b2621] hover:bg-[#38312b] text-[#d4a373] font-medium text-base rounded-2xl border border-[#3d362e] transition-colors"
+              className="w-full py-3.5 liquid-glass-secondary text-[#d4a373] font-medium text-sm rounded-2xl transition-colors cursor-pointer"
             >
               再次沖煮
             </button>
             <button
               onClick={onClose}
-              className="w-full py-4 bg-[#d4a373] hover:bg-[#e0b284] text-[#1a130b] font-bold text-base rounded-2xl transition-colors shadow-lg cursor-pointer"
+              className="w-full py-3.5 liquid-glass text-[#1a130b] font-bold text-sm rounded-2xl shadow-lg cursor-pointer"
             >
               完成並返回模板庫
             </button>

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Check, Minus, Plus, Keyboard } from 'lucide-react';
+import { Check, Delete } from 'lucide-react';
 
 interface PickerWheelProps {
   label: string;
@@ -20,19 +20,20 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
   unit,
   onChange,
 }) => {
-  // Whether the pop-out wheel modal/popover is open
+  // Whether the pop-out wheel modal/sheet is open
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  // Temp value while scrolling inside the popover
+  // Current tab inside pop-out: 'wheel' or 'keypad'
+  const [activeTab, setActiveTab] = useState<'wheel' | 'keypad'>('wheel');
+  // Temp value while interacting in the modal
   const [tempValue, setTempValue] = useState<number>(value);
-  // Manual keyboard input mode
-  const [isKeyboardMode, setIsKeyboardMode] = useState<boolean>(false);
-  const [inputText, setInputText] = useState<string>(value.toString());
+  // Phone keypad buffer text
+  const [keypadText, setKeypadText] = useState<string>(value.toString());
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProgrammaticScroll = useRef<boolean>(false);
 
-  const itemHeight = 48; // 48px per row for generous touch target
+  const itemHeight = 44; // 44px standard iOS touch target
 
   // Precompute options list
   const options = useMemo(() => {
@@ -47,25 +48,25 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
   useEffect(() => {
     if (!isOpen) {
       setTempValue(value);
-      setInputText(value.toString());
+      setKeypadText(value.toString());
     }
   }, [value, isOpen]);
 
-  // When popover opens, scroll smoothly to the initial value
+  // Scroll wheel to current value when opening or switching to wheel
   useEffect(() => {
-    if (isOpen && !isKeyboardMode && scrollContainerRef.current) {
+    if (isOpen && activeTab === 'wheel' && scrollContainerRef.current) {
       const idx = options.findIndex((o) => Math.abs(o - tempValue) < step / 2);
       if (idx !== -1) {
         isProgrammaticScroll.current = true;
         scrollContainerRef.current.scrollTop = idx * itemHeight;
         setTimeout(() => {
           isProgrammaticScroll.current = false;
-        }, 150);
+        }, 120);
       }
     }
-  }, [isOpen, isKeyboardMode]);
+  }, [isOpen, activeTab]);
 
-  // Handle scroll inside the popover wheel WITHOUT triggering parent re-renders or oscillation
+  // Handle scroll inside wheel WITHOUT triggering re-render oscillation
   const handleWheelScroll = () => {
     if (!scrollContainerRef.current || isProgrammaticScroll.current) return;
 
@@ -76,10 +77,9 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
 
     if (selectedVal !== undefined && Math.abs(selectedVal - tempValue) >= 0.01) {
       setTempValue(selectedVal);
-      setInputText(selectedVal.toString());
+      setKeypadText(selectedVal.toString());
     }
 
-    // Debounce snap settle: only commit to parent after finger stops scrolling
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
@@ -100,168 +100,165 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
     }, 120);
   };
 
-  // Step nudge buttons (- / +) for fine 1-tick control
-  const handleStepNudge = (delta: number) => {
-    const nextVal = Math.max(
-      min,
-      Math.min(max, Math.round((tempValue + delta) * 10) / 10)
-    );
-    setTempValue(nextVal);
-    setInputText(nextVal.toString());
-    onChange(nextVal);
-
-    if (scrollContainerRef.current) {
-      const idx = options.findIndex((o) => Math.abs(o - nextVal) < step / 2);
-      if (idx !== -1) {
-        isProgrammaticScroll.current = true;
-        scrollContainerRef.current.scrollTo({
-          top: idx * itemHeight,
-          behavior: 'smooth',
-        });
-        setTimeout(() => {
-          isProgrammaticScroll.current = false;
-        }, 250);
-      }
-    }
-  };
-
-  // Handle direct click on an option row
   const handleOptionClick = (opt: number, idx: number) => {
-    if (Math.abs(opt - tempValue) < step / 2) {
-      // Clicking the already-centered number opens keyboard input
-      setIsKeyboardMode(true);
-      setInputText(tempValue.toString());
-    } else {
-      // Clicking an adjacent number smoothly scrolls to it
-      setTempValue(opt);
-      setInputText(opt.toString());
-      onChange(opt);
-      if (scrollContainerRef.current) {
-        isProgrammaticScroll.current = true;
-        scrollContainerRef.current.scrollTo({
-          top: idx * itemHeight,
-          behavior: 'smooth',
-        });
-        setTimeout(() => {
-          isProgrammaticScroll.current = false;
-        }, 250);
-      }
+    setTempValue(opt);
+    setKeypadText(opt.toString());
+    onChange(opt);
+    if (scrollContainerRef.current) {
+      isProgrammaticScroll.current = true;
+      scrollContainerRef.current.scrollTo({
+        top: idx * itemHeight,
+        behavior: 'smooth',
+      });
+      setTimeout(() => {
+        isProgrammaticScroll.current = false;
+      }, 200);
     }
   };
 
-  const handleKeyboardSubmit = () => {
-    const parsed = parseFloat(inputText);
+  // Virtual Phone Keypad Handlers (0-9, dot, delete)
+  const handleKeypadPress = (digit: string) => {
+    let next: string;
+    if (keypadText === '0' && digit !== '.') {
+      next = digit;
+    } else if (digit === '.') {
+      if (keypadText.includes('.')) return;
+      next = keypadText + '.';
+    } else {
+      if (keypadText.length >= 5) return;
+      next = keypadText + digit;
+    }
+    setKeypadText(next);
+    const parsed = parseFloat(next);
     if (!isNaN(parsed) && parsed > 0) {
       const clamped = Math.max(min, Math.min(max, Math.round(parsed * 10) / 10));
       setTempValue(clamped);
       onChange(clamped);
-    } else {
-      setInputText(tempValue.toString());
     }
-    setIsKeyboardMode(false);
+  };
+
+  const handleKeypadDelete = () => {
+    if (keypadText.length <= 1) {
+      setKeypadText('0');
+      return;
+    }
+    const next = keypadText.slice(0, -1);
+    setKeypadText(next);
+    const parsed = parseFloat(next);
+    if (!isNaN(parsed) && parsed >= min) {
+      setTempValue(parsed);
+      onChange(parsed);
+    }
   };
 
   return (
     <>
-      {/* Static Display Card (Prevents accidental scrolling when scrolling the page) */}
+      {/* Static Display Card on page (Prevents accidental page scroll modification) */}
       <button
         type="button"
         onClick={() => {
           setTempValue(value);
-          setIsKeyboardMode(false);
+          setKeypadText(value.toString());
+          setActiveTab('wheel');
           setIsOpen(true);
         }}
-        className="flex-1 bg-[#161412] hover:bg-[#1f1c18] active:scale-[0.98] border border-[#332e27] hover:border-[#d4a373]/60 rounded-2xl p-4 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-inner group"
+        className="flex-1 bg-[#1a1714] dark:bg-[#1a1714] border border-[#332e27] hover:border-[#d4a373]/60 rounded-2xl p-4 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group active:scale-[0.98]"
       >
-        <span className="text-xs font-medium text-[#9c9183] mb-1.5 tracking-wider">
+        <span className="text-xs font-medium text-[#9c9183] mb-1 tracking-wider">
           {label} ({unit.toUpperCase()})
         </span>
 
-        <div className="flex items-baseline gap-1 my-1">
-          <span className="font-serif text-3xl sm:text-4xl font-bold text-[#f7f2ea] group-hover:text-[#d4a373] transition-colors">
+        <div className="flex items-baseline gap-1 my-0.5">
+          <span className="font-serif text-3xl font-bold text-[#f7f2ea] group-hover:text-[#d4a373] transition-colors">
             {value}
           </span>
-          <span className="text-sm text-[#d4a373] font-medium">{unit}</span>
+          <span className="text-xs text-[#d4a373] font-medium">{unit}</span>
         </div>
 
-        <span className="text-[11px] text-[#786e62] group-hover:text-[#a89b8c] mt-1 flex items-center gap-1">
-          <span>點擊調整刻度</span>
+        <span className="text-[11px] text-[#786e62] group-hover:text-[#a89b8c] mt-0.5">
+          點擊調整刻度
         </span>
       </button>
 
-      {/* Pop-out Tactile Picker Mini-Interface */}
+      {/* Pop-out Bottom Sheet Modal */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in"
           onClick={() => setIsOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xs bg-[#1c1916] border border-[#3d352c] rounded-3xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.85)] text-center relative"
+            className="w-full max-w-md bg-[#1c1916] border-t border-[#3d352c] rounded-t-3xl p-5 shadow-[0_-15px_40px_rgba(0,0,0,0.8)] text-center relative safe-bottom"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-base font-serif font-bold text-[#f5efe6]">
+            {/* Sheet Drag Handle */}
+            <div className="w-10 h-1 bg-[#473d32] rounded-full mx-auto mb-4" />
+
+            {/* Header: Label & Mode Switcher */}
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-lg font-serif font-bold text-[#f5efe6]">
                 調整{label}
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsKeyboardMode(!isKeyboardMode);
-                  setInputText(tempValue.toString());
-                }}
-                className="px-2.5 py-1 rounded-lg bg-[#2a241e] hover:bg-[#383028] text-xs text-[#d4a373] flex items-center gap-1 border border-[#3d352c] cursor-pointer"
-              >
-                <Keyboard size={13} />
-                <span>{isKeyboardMode ? '切換滾輪' : '鍵盤輸入'}</span>
-              </button>
+
+              {/* Segmented Tab Switcher */}
+              <div className="flex rounded-xl bg-[#26211c] p-0.5 border border-[#383028]">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('wheel')}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                    activeTab === 'wheel'
+                      ? 'bg-[#d4a373] text-[#1a1208] font-bold shadow'
+                      : 'text-[#9c9183] hover:text-[#e4ded7]'
+                  }`}
+                >
+                  滾輪刻度
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('keypad');
+                    setKeypadText(tempValue.toString());
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                    activeTab === 'keypad'
+                      ? 'bg-[#d4a373] text-[#1a1208] font-bold shadow'
+                      : 'text-[#9c9183] hover:text-[#e4ded7]'
+                  }`}
+                >
+                  數字鍵盤
+                </button>
+              </div>
             </div>
 
-            {isKeyboardMode ? (
-              /* Direct Numeric Keyboard Mode */
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleKeyboardSubmit();
-                  setIsOpen(false);
-                }}
-                className="py-6 flex flex-col items-center gap-4"
-              >
-                <div className="flex items-baseline justify-center gap-2">
-                  <input
-                    type="number"
-                    step={step}
-                    autoFocus
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    className="w-32 bg-[#12100e] text-[#f7f2ea] border-2 border-[#d4a373] rounded-2xl px-3 py-2.5 text-center text-3xl font-serif font-bold focus:outline-none"
-                  />
-                  <span className="text-lg text-[#d4a373] font-serif">{unit}</span>
-                </div>
-                <p className="text-xs text-[#8c8274]">
-                  建議範圍：{min}{unit} – {max}{unit}
-                </p>
-              </form>
-            ) : (
-              /* Smooth Decoupled Roller Wheel + Fine +/- Stepper */
-              <div className="my-2">
-                <div className="relative w-full h-[192px] overflow-hidden flex items-center justify-center bg-[#141210] rounded-2xl border border-[#2b2620]">
-                  {/* Top & Bottom Fade Masks */}
+            {/* Fixed Central Display Box */}
+            <div className="my-2 py-2 px-4 rounded-2xl bg-[#141210] border border-[#2e2822] flex items-center justify-center gap-1.5">
+              <span className="text-xs text-[#8c8274]">目前數值：</span>
+              <span className="font-serif text-3xl font-bold text-[#d4a373]">
+                {activeTab === 'keypad' ? keypadText : tempValue}
+              </span>
+              <span className="text-sm text-[#d4a373] font-medium">{unit}</span>
+            </div>
+
+            {/* Mode 1: Strict Vertical-Only Picker Wheel */}
+            {activeTab === 'wheel' ? (
+              <div className="my-3">
+                <div className="relative w-full h-[176px] overflow-hidden flex items-center justify-center bg-[#141210] rounded-2xl border border-[#2b2620]">
+                  {/* Top & Bottom gradient mask */}
                   <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-[#141210] to-transparent pointer-events-none z-20" />
                   <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#141210] to-transparent pointer-events-none z-20" />
 
-                  {/* Center Active Highlight Window */}
-                  <div className="absolute inset-x-3 top-[72px] h-[48px] rounded-xl bg-[#2a241e]/90 border-y border-[#d4a373]/50 pointer-events-none z-0 shadow-inner" />
+                  {/* Centered selection bar */}
+                  <div className="absolute inset-x-4 top-[66px] h-[44px] rounded-xl bg-[#2a241e]/90 border-y border-[#d4a373]/50 pointer-events-none z-0" />
 
-                  {/* Scrollable Wheel Container */}
+                  {/* Vertical only scrollable container */}
                   <div
                     ref={scrollContainerRef}
                     onScroll={handleWheelScroll}
                     style={{
                       scrollSnapType: 'y mandatory',
                       WebkitOverflowScrolling: 'touch',
+                      touchAction: 'pan-y', // Disable horizontal scroll completely!
                     }}
-                    className="w-full h-full overflow-y-scroll no-scrollbar py-[72px] relative z-10"
+                    className="w-full h-full overflow-y-scroll overflow-x-hidden no-scrollbar py-[66px] relative z-10"
                   >
                     {options.map((opt, idx) => {
                       const isSelected = Math.abs(opt - tempValue) < step / 2;
@@ -276,9 +273,9 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
                               : 'text-[#6e6457] text-base font-serif scale-95 hover:text-[#9c9080]'
                           }`}
                         >
-                          <span>{opt}</span>
+                          <span className="mx-auto text-center">{opt}</span>
                           {isSelected && (
-                            <span className="text-xs text-[#d4a373] font-sans font-medium ml-1.5">
+                            <span className="text-xs text-[#d4a373] font-sans font-medium ml-1">
                               {unit}
                             </span>
                           )}
@@ -287,43 +284,55 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
                     })}
                   </div>
                 </div>
-
-                {/* Fine-tuning Stepper Buttons */}
-                <div className="flex items-center justify-between gap-3 mt-3">
+                <p className="text-[11px] text-[#786e62] mt-2">
+                  僅支援上下滾動選擇 · 建議範圍：{min}{unit} – {max}{unit}
+                </p>
+              </div>
+            ) : (
+              /* Mode 2: In-situ Phone Numeric Keypad (No floating/jumping viewport!) */
+              <div className="my-2">
+                <div className="grid grid-cols-3 gap-2 max-w-[280px] mx-auto py-1">
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((btn) => (
+                    <button
+                      key={btn}
+                      type="button"
+                      onClick={() => handleKeypadPress(btn)}
+                      className="h-12 rounded-2xl bg-[#26211c] hover:bg-[#332c25] active:bg-[#3d342a] active:scale-95 text-[#f5efe6] font-serif text-xl font-bold flex items-center justify-center border border-[#362f28] transition-all cursor-pointer shadow-sm"
+                    >
+                      {btn}
+                    </button>
+                  ))}
                   <button
                     type="button"
-                    onClick={() => handleStepNudge(-step)}
-                    className="flex-1 py-2 rounded-xl bg-[#26211c] hover:bg-[#332c25] active:scale-95 text-[#d4a373] flex items-center justify-center gap-1 text-sm font-medium border border-[#362f28] cursor-pointer"
+                    onClick={handleKeypadDelete}
+                    className="h-12 rounded-2xl bg-[#26211c] hover:bg-[#332c25] active:bg-[#3d342a] active:scale-95 text-[#d4a373] flex items-center justify-center border border-[#362f28] transition-all cursor-pointer shadow-sm"
+                    aria-label="刪除"
                   >
-                    <Minus size={15} />
-                    <span>{step}{unit}</span>
-                  </button>
-                  <span className="text-xs text-[#786e62]">點擊中央數字可輸入</span>
-                  <button
-                    type="button"
-                    onClick={() => handleStepNudge(step)}
-                    className="flex-1 py-2 rounded-xl bg-[#26211c] hover:bg-[#332c25] active:scale-95 text-[#d4a373] flex items-center justify-center gap-1 text-sm font-medium border border-[#362f28] cursor-pointer"
-                  >
-                    <Plus size={15} />
-                    <span>{step}{unit}</span>
+                    <Delete size={20} />
                   </button>
                 </div>
+                <p className="text-[11px] text-[#786e62] mt-2">
+                  建議範圍：{min}{unit} – {max}{unit}
+                </p>
               </div>
             )}
 
-            {/* Confirm Button */}
+            {/* Liquid Glass Confirm Button */}
             <button
               type="button"
               onClick={() => {
-                if (isKeyboardMode) {
-                  handleKeyboardSubmit();
+                const parsed = parseFloat(keypadText);
+                if (!isNaN(parsed) && parsed >= min && parsed <= max) {
+                  onChange(parsed);
+                } else {
+                  onChange(tempValue);
                 }
                 setIsOpen(false);
               }}
-              className="w-full mt-4 py-3 bg-[#d4a373] hover:bg-[#e0b284] text-[#1a1208] font-bold text-base rounded-2xl flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+              className="w-full mt-3 py-3.5 liquid-glass rounded-2xl text-[#161009] font-serif font-bold text-base flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Check size={18} />
-              <span>完成設定</span>
+              <span>確認設定</span>
             </button>
           </div>
         </div>

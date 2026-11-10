@@ -69,28 +69,28 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#151311] text-[#e8e2d8] pb-36">
-      {/* Top Navbar */}
-      <div className="sticky top-0 z-20 bg-[#151311]/90 backdrop-blur-md border-b border-[#292520] px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[#151311] dark:bg-[#151311] text-[#e8e2d8] pb-32 fade-enter safe-top">
+      {/* Top Navbar with iPhone status bar padding */}
+      <div className="sticky top-0 z-20 bg-[#151311]/90 backdrop-blur-md border-b border-[#292520] px-4 py-3 flex items-center justify-between">
         <button
           onClick={onBack}
-          className="p-2 -ml-2 rounded-full hover:bg-[#26221d] text-[#b3a898] transition-colors"
+          className="w-10 h-10 rounded-full liquid-glass-secondary flex items-center justify-center text-[#d4a373] transition-colors cursor-pointer"
           aria-label="返回"
         >
-          <ChevronLeft size={26} />
+          <ChevronLeft size={22} />
         </button>
-        <h2 className="text-lg font-medium text-[#d9d0c5]">準備這一杯</h2>
-        <div className="w-8" />
+        <h2 className="text-base font-medium text-[#d9d0c5]">準備這一杯</h2>
+        <div className="w-10" />
       </div>
 
-      <div className="max-w-xl mx-auto px-5 pt-5 text-left">
+      <div className="max-w-md mx-auto px-5 pt-4 text-left">
         {/* Main Title Section */}
-        <div className="mb-6">
-          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-[#f5efe6] mb-1.5">
+        <div className="mb-5">
+          <h1 className="text-3xl font-serif-num font-bold text-[#f5efe6] mb-1">
             沖一杯{recipe.name}
           </h1>
-          <p className="text-xl font-serif text-[#d4a373] mb-2">{recipe.name}</p>
-          <div className="flex flex-wrap items-center gap-2.5 text-sm text-[#a39788]">
+          <p className="text-lg font-serif-num text-[#d4a373] mb-2">{recipe.name}</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[#a39788]">
             <span>{recipe.defaultCoffee} g</span>
             <span>•</span>
             <span>{recipe.defaultWater} g</span>
@@ -107,16 +107,16 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
           </div>
         </div>
 
-        {/* Adjust Brew Parameters Section with Picker View */}
-        <div className="bg-[#1c1a17] border border-[#2b2722] rounded-3xl p-5 mb-7 shadow-md">
-          <h3 className="text-lg font-serif font-bold text-[#f5efe6] mb-1.5">
+        {/* Adjust Brew Parameters Section with Tap-to-Pop Picker Wheel */}
+        <div className="bg-[#1c1a17] border border-[#2b2722] rounded-3xl p-5 mb-6 shadow-md">
+          <h3 className="text-base font-serif-num font-bold text-[#f5efe6] mb-1">
             調整這一杯
           </h3>
-          <p className="text-sm text-[#8c8274] leading-relaxed mb-4">
+          <p className="text-xs text-[#8c8274] leading-relaxed mb-4">
             改粉量或總水量，另一項與每段注水會依原配方比例自動換算。只調整這次沖煮，不修改原配方。
           </p>
 
-          {/* Dual Picker Wheel View */}
+          {/* Dual Picker Cards */}
           <div className="flex gap-3 mb-3">
             <PickerWheel
               label="粉量"
@@ -138,7 +138,7 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
             />
           </div>
 
-          <div className="text-sm text-[#8a7f72] flex items-center justify-between pt-1">
+          <div className="text-xs text-[#8a7f72] flex items-center justify-between pt-1">
             <span>維持原配方粉水比 {recipe.ratio}</span>
             {coffeeAmount !== recipe.defaultCoffee && (
               <button
@@ -146,7 +146,7 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
                   setCoffeeAmount(recipe.defaultCoffee);
                   setWaterAmount(recipe.defaultWater);
                 }}
-                className="text-[#d4a373] hover:underline text-xs"
+                className="text-[#d4a373] hover:underline text-xs cursor-pointer"
               >
                 重設回預設
               </button>
@@ -155,8 +155,8 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
         </div>
 
         {/* Steps List */}
-        <div className="mb-8">
-          <h3 className="text-lg font-serif font-bold text-[#f5efe6] mb-4">
+        <div className="mb-6">
+          <h3 className="text-base font-serif-num font-bold text-[#f5efe6] mb-3">
             本次沖煮步驟
           </h3>
 
@@ -164,14 +164,12 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
             {scaledSteps.map((step) => {
               const isWait = step.type === 'wait' || step.scaledWater === 0;
               return (
-                <div key={step.id} className="py-4 flex flex-col gap-1.5">
-                  <div className="flex items-start justify-between">
-                    <span className="text-base font-medium text-[#e8e2d8]">
-                      步驟 {step.stepNumber} · {step.title}
-                    </span>
-                  </div>
+                <div key={step.id} className="py-3 flex flex-col gap-1">
+                  <span className="text-sm font-medium text-[#e8e2d8]">
+                    步驟 {step.stepNumber} · {step.title}
+                  </span>
 
-                  <div className="text-sm text-[#8c8275] flex items-center gap-2">
+                  <div className="text-xs text-[#8c8275] flex items-center gap-2">
                     {isWait ? (
                       <span>等待 {formatSeconds(step.duration)}</span>
                     ) : (
@@ -191,14 +189,14 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
             })}
           </div>
 
-          <p className="text-sm text-[#7d7367] mt-4 leading-relaxed">
+          <p className="text-xs text-[#7d7367] mt-3.5 leading-relaxed">
             水溫與步驟時間沿用原配方，實際流速可視豆子與器材調整。用量會四捨五入。
           </p>
         </div>
       </div>
 
       {/* Floating Liquid Glass "開始計時" Action Button */}
-      <div className="fixed bottom-6 left-4 right-4 max-w-lg mx-auto z-30">
+      <div className="fixed bottom-6 left-4 right-4 max-w-md mx-auto z-30 safe-bottom">
         <button
           onClick={() =>
             onStartBrewing(
@@ -209,9 +207,9 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
               ''
             )
           }
-          className="w-full py-4 px-6 rounded-3xl backdrop-blur-2xl bg-gradient-to-r from-[#d4a373]/90 via-[#dfb17a]/95 to-[#c8925b]/90 text-[#1a1208] font-serif font-bold text-xl flex items-center justify-center gap-2.5 transition-all duration-200 border border-white/30 shadow-[0_10px_35px_rgba(212,163,115,0.4),inset_0_1px_2px_rgba(255,255,255,0.6)] active:scale-[0.98] hover:shadow-[0_12px_40px_rgba(212,163,115,0.5)] cursor-pointer"
+          className="w-full py-4 px-6 rounded-3xl liquid-glass text-[#150f08] font-serif-num font-bold text-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
         >
-          <Play size={22} fill="currentColor" />
+          <Play size={20} fill="currentColor" />
           <span>開始計時</span>
         </button>
       </div>

@@ -1,27 +1,52 @@
 @import "tailwindcss";
 
 :root {
-  font-size: 18px;
+  font-size: 16px; /* Standard iPhone optimized scale */
   color-scheme: dark;
-  background-color: #151311;
-  color: #e8e2d8;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --bg-primary: #13110f;
+  --bg-card: #1c1916;
+  --bg-card-sub: #161412;
+  --border-color: #2b2722;
+  --text-main: #f5efe6;
+  --text-muted: #8c8274;
+  --accent-gold: #d4a373;
+}
+
+html.light {
+  color-scheme: light;
+  --bg-primary: #f7f5f0;
+  --bg-card: #ffffff;
+  --bg-card-sub: #f0ece3;
+  --border-color: #e2dcd2;
+  --text-main: #2b2621;
+  --text-muted: #7d7265;
+  --accent-gold: #b3824f;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #151311;
-  color: #e8e2d8;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
   min-height: 100vh;
   min-height: 100dvh;
   touch-action: manipulation;
   overscroll-behavior-y: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Hide scrollbar for category pills */
+/* iPhone Status Bar safe area spacing */
+.safe-top {
+  padding-top: max(env(safe-area-inset-top, 44px), 44px);
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 20px), 20px);
+}
+
+/* Hide scrollbar */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -30,12 +55,71 @@ body {
   scrollbar-width: none;
 }
 
-/* Smooth fade in animation */
+/* Universal Liquid Glass Buttons and Badges */
+.liquid-glass {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  background: linear-gradient(135deg, rgba(223, 177, 122, 0.90) 0%, rgba(212, 163, 115, 0.95) 50%, rgba(196, 142, 88, 0.90) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 8px 30px rgba(212, 163, 115, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.7);
+}
+
+.liquid-glass:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 15px rgba(212, 163, 115, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.liquid-glass-secondary {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(40, 34, 28, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+}
+
+html.light .liquid-glass-secondary {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+/* Page Cross-fade transitions */
+.fade-enter {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.98); }
+  from { opacity: 0; transform: scale(0.99); }
   to { opacity: 1; transform: scale(1); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.25s ease-out forwards;
+/* Step transition sliding push effect */
+@keyframes slideUpFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.step-slide-in {
+  animation: slideUpFadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUpFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+.step-slide-out {
+  animation: slideUpFadeOut 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

@@ -4,19 +4,22 @@ import type { Recipe, ScaledStep, BrewerType } from './types/recipe';
 import { RecipeCard } from './components/RecipeCard';
 import { RecipeDetailView } from './components/RecipeDetailView';
 import { BrewingTimerView } from './components/BrewingTimerView';
-import { Coffee, Search, ChevronLeft } from 'lucide-react';
+import { Coffee, Search, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
 
 export function App() {
   const [selectedCategory, setSelectedCategory] = useState<BrewerType>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
+  // Theme state: dark | light (Toggled by clicking the top-left coffee cup icon)
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
   // Navigation state
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
   const [viewMode, setViewMode] = useState<'library' | 'detail' | 'timer'>('library');
 
-  // Swipe gesture state
+  // Swipe gesture state (Left-edge swipe right for back; Right-edge swipe left for next)
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
-  const touchStartRef = useRef<{ x: number; y: number; isEdge: boolean } | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; edge: 'left' | 'right' | null } | null>(null);
 
   // Brewing state
   const [brewConfig, setBrewConfig] = useState<{
@@ -26,46 +29,68 @@ export function App() {
     beanName: string;
   } | null>(null);
 
-  // Edge swipe back gesture (iOS-like swipe from left edge)
+  // Apply theme class to <html>
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  // Dual Edge Swipe Navigation (Left-edge: Back; Right-edge: Next)
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0];
-      // Only initiate swipe if touch starts within 40px of left edge
+      const winW = window.innerWidth;
+
       if (touch.clientX <= 45 && viewMode !== 'library') {
-        touchStartRef.current = {
-          x: touch.clientX,
-          y: touch.clientY,
-          isEdge: true,
-        };
+        // Left edge swipe -> Go back
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, edge: 'left' };
+      } else if (touch.clientX >= winW - 45 && viewMode === 'library' && activeRecipe) {
+        // Right edge swipe -> Go next (Return to previously selected recipe)
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, edge: 'right' };
       } else {
         touchStartRef.current = null;
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (!touchStartRef.current || !touchStartRef.current.isEdge) return;
+      if (!touchStartRef.current || !touchStartRef.current.edge) return;
       const touch = e.touches[0];
       const deltaX = touch.clientX - touchStartRef.current.x;
       const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
 
-      // Horizontal dominant swipe to the right
-      if (deltaX > 0 && deltaX > deltaY) {
-        setSwipeOffset(Math.min(deltaX, 150));
+      if (touchStartRef.current.edge === 'left' && deltaX > 0 && deltaX > deltaY) {
+        setSwipeOffset(Math.min(deltaX, 120));
+      } else if (touchStartRef.current.edge === 'right' && deltaX < 0 && Math.abs(deltaX) > deltaY) {
+        setSwipeOffset(Math.max(deltaX, -120));
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (!touchStartRef.current || !touchStartRef.current.isEdge) return;
+      if (!touchStartRef.current || !touchStartRef.current.edge) return;
       const touch = e.changedTouches[0];
       const deltaX = touch.clientX - touchStartRef.current.x;
       const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
 
-      if (deltaX > 75 && deltaX > deltaY) {
-        // Trigger back action
+      if (touchStartRef.current.edge === 'left' && deltaX > 70 && deltaX > deltaY) {
+        // Back navigation
         if (viewMode === 'timer') {
           setViewMode('detail');
         } else if (viewMode === 'detail') {
           setViewMode('library');
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (touchStartRef.current.edge === 'right' && deltaX < -70 && Math.abs(deltaX) > deltaY) {
+        // Next navigation (library -> return to activeRecipe)
+        if (viewMode === 'library' && activeRecipe) {
+          setViewMode('detail');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       }
 
@@ -82,7 +107,7 @@ export function App() {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [viewMode]);
+  }, [viewMode, activeRecipe]);
 
   // Filter recipes
   const filteredRecipes = RECIPES.filter((r) => {
@@ -98,6 +123,12 @@ export function App() {
   const handleSelectRecipe = (recipe: Recipe) => {
     setActiveRecipe(recipe);
     setViewMode('detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCategoryChange = (cat: BrewerType) => {
+    setSelectedCategory(cat);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleStartBrewing = (
@@ -115,44 +146,76 @@ export function App() {
       beanName,
     });
     setViewMode('timer');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <div className="min-h-screen bg-[#151311] text-[#e8e2d8] relative select-none">
-      {/* Swipe Back Indicator Hint */}
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-main)] relative select-none">
+      {/* Swipe Feedback Hints */}
       {swipeOffset > 15 && (
         <div
           style={{ transform: `translateX(${swipeOffset * 0.4}px)` }}
-          className="fixed left-2 top-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-[#d4a373] text-[#140e08] flex items-center justify-center shadow-xl transition-transform"
+          className="fixed left-2 top-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full liquid-glass text-[#1a1208] flex items-center justify-center shadow-2xl transition-transform"
         >
-          <ChevronLeft size={24} />
+          <ChevronLeft size={22} />
+        </div>
+      )}
+      {swipeOffset < -15 && (
+        <div
+          style={{ transform: `translateX(${swipeOffset * 0.4}px)` }}
+          className="fixed right-2 top-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full liquid-glass text-[#1a1208] flex items-center justify-center shadow-2xl transition-transform"
+        >
+          <ChevronRight size={22} />
         </div>
       )}
 
       {/* View 1: Recipe Library (模板庫) */}
       {viewMode === 'library' && (
-        <div className="max-w-xl mx-auto pb-10">
-          {/* Sticky Header: Title + Search Bar + Category Pills */}
-          <div className="sticky top-0 z-30 bg-[#151311]/95 backdrop-blur-md px-4 pt-4 pb-2 border-b border-[#292520] shadow-md">
+        <div className="max-w-md mx-auto pb-12 fade-enter safe-top">
+          {/* Sticky Header with iPhone Status Bar Clearance */}
+          <div className="sticky top-0 z-30 bg-[#13110f]/95 dark:bg-[#13110f]/95 backdrop-blur-md px-4 pt-3 pb-2 border-b border-[#292520] shadow-sm">
             {/* Title Bar */}
-            <div className="flex items-center justify-between mb-3.5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#29231c] border border-[#3d3429] flex items-center justify-center text-[#d4a373]">
-                  <Coffee size={22} />
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#f5efe6] tracking-wide">
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-2.5">
+                {/* Coffee Cup Theme Toggle Button */}
+                <button
+                  onClick={toggleTheme}
+                  title="點擊切換深色/淺色模式"
+                  className="w-10 h-10 rounded-2xl liquid-glass-secondary flex items-center justify-center text-[#d4a373] transition-transform active:scale-90 cursor-pointer shadow-sm relative group"
+                >
+                  <Coffee size={20} />
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#d4a373] text-[9px] text-[#1a1208] flex items-center justify-center font-bold">
+                    {theme === 'dark' ? <Sun size={8} /> : <Moon size={8} />}
+                  </span>
+                </button>
+                <h1 className="text-2xl font-serif-num font-bold text-[#f5efe6] tracking-wide">
                   模板庫
                 </h1>
               </div>
-              <span className="text-xs sm:text-sm text-[#8f8374] px-3 py-1 rounded-full bg-[#1f1c18] border border-[#2e2923]">
-                {RECIPES.length} 款手沖配方
-              </span>
+
+              {/* Previously viewed quick return badge */}
+              {activeRecipe ? (
+                <button
+                  onClick={() => {
+                    setViewMode('detail');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="text-xs text-[#d4a373] px-3 py-1 rounded-full liquid-glass-secondary flex items-center gap-1 cursor-pointer active:scale-95"
+                >
+                  <span className="truncate max-w-[90px]">{activeRecipe.name}</span>
+                  <ChevronRight size={13} />
+                </button>
+              ) : (
+                <span className="text-xs text-[#8f8374] px-2.5 py-1 rounded-full liquid-glass-secondary">
+                  {RECIPES.length} 款手沖配方
+                </span>
+              )}
             </div>
 
             {/* Search Bar */}
-            <div className="relative mb-3">
+            <div className="relative mb-2.5">
               <Search
-                size={18}
+                size={16}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#807669]"
               />
               <input
@@ -160,23 +223,23 @@ export function App() {
                 placeholder="搜尋配方、濾杯或沖煮作者..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#1c1a17] border border-[#2e2a25] rounded-xl pl-11 pr-4 py-3 text-base text-[#e8e2d8] placeholder-[#736a5e] focus:outline-none focus:border-[#d4a373] transition-colors"
+                className="w-full bg-[#1c1a17] border border-[#2e2a25] rounded-xl pl-10 pr-4 py-2 text-sm text-[#e8e2d8] placeholder-[#736a5e] focus:outline-none focus:border-[#d4a373] transition-colors"
               />
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {/* Category Filter Pills (Liquid Glass Style) */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
               {(['All', 'V60', 'Kalita Wave', 'Origami', '冰手沖'] as BrewerType[]).map(
                 (category) => {
                   const isSelected = selectedCategory === category;
                   return (
                     <button
                       key={category}
-                      onClick={() => setSelectedCategory(category)}
-                      className={`px-4 py-1.5 text-xs sm:text-sm font-medium rounded-full whitespace-nowrap transition-all duration-150 ${
+                      onClick={() => handleCategoryChange(category)}
+                      className={`px-3.5 py-1 text-xs rounded-full whitespace-nowrap transition-all duration-150 cursor-pointer ${
                         isSelected
-                          ? 'bg-[#d4a373] text-[#1c140d] font-bold shadow-sm'
-                          : 'bg-[#211e1a] hover:bg-[#2b2722] text-[#9c9183] border border-[#2e2924]'
+                          ? 'liquid-glass text-[#150f08] font-bold shadow'
+                          : 'liquid-glass-secondary text-[#9c9183] hover:text-[#f0eae1]'
                       }`}
                     >
                       {category === 'All' ? '全部配方' : category}
@@ -199,18 +262,18 @@ export function App() {
               ))
             ) : (
               <div className="py-20 text-center text-[#827668]">
-                <p className="text-base">沒有符合條件的沖煮配方</p>
+                <p className="text-sm">沒有符合條件的沖煮配方</p>
               </div>
             )}
           </div>
 
           {/* Bottom Footer notes */}
-          <div className="mt-8 px-4 pt-6 border-t border-[#26221d] text-center text-xs text-[#6b6256] leading-relaxed space-y-2">
+          <div className="mt-8 px-4 pt-6 border-t border-[#26221d] text-center text-[11px] text-[#6b6256] leading-relaxed space-y-1">
             <p>
               參數依各作者公開發表的配方整理。請依烘焙度與口味調整粉量、水溫與研磨度。
             </p>
             <p>
-              內建沖煮模板僅供學習與參考。個人專屬 PWA 工具。
+              向左滑動右邊緣可快速重回剛才選擇的食譜。
             </p>
           </div>
         </div>
@@ -220,19 +283,25 @@ export function App() {
       {viewMode === 'detail' && activeRecipe && (
         <RecipeDetailView
           recipe={activeRecipe}
-          onBack={() => setViewMode('library')}
+          onBack={() => {
+            setViewMode('library');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onStartBrewing={handleStartBrewing}
         />
       )}
 
-      {/* View 3: Brewing Timer (沖煮計時器 - IMG_6872) */}
+      {/* View 3: Brewing Timer (沖煮計時器) */}
       {viewMode === 'timer' && activeRecipe && brewConfig && (
         <BrewingTimerView
           recipe={activeRecipe}
           coffeeAmount={brewConfig.coffeeAmount}
           waterAmount={brewConfig.waterAmount}
           scaledSteps={brewConfig.scaledSteps}
-          onClose={() => setViewMode('detail')}
+          onClose={() => {
+            setViewMode('detail');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         />
       )}
     </div>
