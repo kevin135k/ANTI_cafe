@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Check, Delete } from 'lucide-react';
+import { Check, Delete, X } from 'lucide-react';
 
 interface PickerWheelProps {
   label: string;
@@ -20,9 +20,9 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
   unit,
   onChange,
 }) => {
-  // Whether the pop-out wheel modal/sheet is open
+  // Whether the pop-out floating modal is open
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  // Current tab inside pop-out: 'wheel' or 'keypad'
+  // Current tab inside modal: 'wheel' or 'keypad'
   const [activeTab, setActiveTab] = useState<'wheel' | 'keypad'>('wheel');
   // Temp value while interacting in the modal
   const [tempValue, setTempValue] = useState<number>(value);
@@ -162,92 +162,101 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
           setActiveTab('wheel');
           setIsOpen(true);
         }}
-        className="flex-1 bg-[#1a1714] dark:bg-[#1a1714] border border-[#332e27] hover:border-[#d4a373]/60 rounded-2xl p-4 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group active:scale-[0.98]"
+        className="flex-1 bg-[var(--bg-card)] border border-[var(--border-color)] hover:border-[var(--accent-coffee)]/60 rounded-2xl p-4 flex flex-col items-center justify-center transition-all duration-150 cursor-pointer shadow-sm group active:scale-[0.98]"
       >
-        <span className="text-xs font-medium text-[#9c9183] mb-1 tracking-wider">
+        <span className="text-xs font-medium text-[var(--text-muted)] mb-1 tracking-wider">
           {label} ({unit.toUpperCase()})
         </span>
 
         <div className="flex items-baseline gap-1 my-0.5">
-          <span className="font-serif text-3xl font-bold text-[#f7f2ea] group-hover:text-[#d4a373] transition-colors">
+          <span className="font-serif text-3xl font-bold text-[var(--text-main)] group-hover:text-[var(--accent-coffee)] transition-colors">
             {value}
           </span>
-          <span className="text-xs text-[#d4a373] font-medium">{unit}</span>
+          <span className="text-xs text-[var(--accent-coffee)] font-medium">{unit}</span>
         </div>
 
-        <span className="text-[11px] text-[#786e62] group-hover:text-[#a89b8c] mt-0.5">
-          點擊調整刻度
+        <span className="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--accent-coffee)] mt-0.5">
+          點擊調整數值
         </span>
       </button>
 
-      {/* Pop-out Bottom Sheet Modal */}
+      {/* Pop-out Centered Floating Modal Dialog (Not a Bottom Sheet) */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in"
+          data-picker-modal="true"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 fade-enter"
           onClick={() => setIsOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-[#1c1916] border-t border-[#3d352c] rounded-t-3xl p-5 shadow-[0_-15px_40px_rgba(0,0,0,0.8)] text-center relative safe-bottom"
+            className="w-full max-w-[320px] sm:max-w-xs bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-5 shadow-2xl text-center relative animate-pop-in select-none"
           >
-            {/* Sheet Drag Handle */}
-            <div className="w-10 h-1 bg-[#473d32] rounded-full mx-auto mb-4" />
-
-            {/* Header: Label & Mode Switcher */}
+            {/* Header: Label, Close Button, & Tab Switcher */}
             <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-lg font-serif font-bold text-[#f5efe6]">
+              <span className="text-base font-serif font-bold text-[var(--text-main)]">
                 調整{label}
               </span>
 
-              {/* Segmented Tab Switcher */}
-              <div className="flex rounded-xl bg-[#26211c] p-0.5 border border-[#383028]">
+              <div className="flex items-center gap-2">
+                {/* Segmented Tab Switcher */}
+                <div className="flex rounded-xl bg-[var(--bg-card-sub)] p-0.5 border border-[var(--border-color)]">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('wheel')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                      activeTab === 'wheel'
+                        ? 'liquid-glass text-white dark:text-[#1a1208] font-bold shadow-sm'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    滾輪
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('keypad');
+                      setKeypadText(tempValue.toString());
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                      activeTab === 'keypad'
+                        ? 'liquid-glass text-white dark:text-[#1a1208] font-bold shadow-sm'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    鍵盤
+                  </button>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setActiveTab('wheel')}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                    activeTab === 'wheel'
-                      ? 'bg-[#d4a373] text-[#1a1208] font-bold shadow'
-                      : 'text-[#9c9183] hover:text-[#e4ded7]'
-                  }`}
+                  onClick={() => setIsOpen(false)}
+                  className="w-7 h-7 rounded-full bg-[var(--bg-card-sub)] text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center justify-center transition-colors cursor-pointer"
+                  aria-label="關閉"
                 >
-                  滾輪刻度
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('keypad');
-                    setKeypadText(tempValue.toString());
-                  }}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                    activeTab === 'keypad'
-                      ? 'bg-[#d4a373] text-[#1a1208] font-bold shadow'
-                      : 'text-[#9c9183] hover:text-[#e4ded7]'
-                  }`}
-                >
-                  數字鍵盤
+                  <X size={15} />
                 </button>
               </div>
             </div>
 
-            {/* Fixed Central Display Box */}
-            <div className="my-2 py-2 px-4 rounded-2xl bg-[#141210] border border-[#2e2822] flex items-center justify-center gap-1.5">
-              <span className="text-xs text-[#8c8274]">目前數值：</span>
-              <span className="font-serif text-3xl font-bold text-[#d4a373]">
+            {/* Central Display Value */}
+            <div className="my-2 py-2 px-3 rounded-2xl bg-[var(--bg-card-sub)] border border-[var(--border-color)] flex items-center justify-center gap-1.5">
+              <span className="text-xs text-[var(--text-muted)]">目前設定：</span>
+              <span className="font-serif text-3xl font-bold text-[var(--accent-coffee)]">
                 {activeTab === 'keypad' ? keypadText : tempValue}
               </span>
-              <span className="text-sm text-[#d4a373] font-medium">{unit}</span>
+              <span className="text-sm text-[var(--accent-coffee)] font-medium">{unit}</span>
             </div>
 
-            {/* Mode 1: Strict Vertical-Only Picker Wheel */}
+            {/* Mode 1: Strict Vertical-Only Picker Wheel (NO "g" next to options, only numbers) */}
             {activeTab === 'wheel' ? (
               <div className="my-3">
-                <div className="relative w-full h-[176px] overflow-hidden flex items-center justify-center bg-[#141210] rounded-2xl border border-[#2b2620]">
+                <div className="relative w-full h-[176px] overflow-hidden flex items-center justify-center bg-[var(--bg-card-sub)] rounded-2xl border border-[var(--border-color)]">
                   {/* Top & Bottom gradient mask */}
-                  <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-[#141210] to-transparent pointer-events-none z-20" />
-                  <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#141210] to-transparent pointer-events-none z-20" />
+                  <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-[var(--bg-card-sub)] to-transparent pointer-events-none z-20" />
+                  <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--bg-card-sub)] to-transparent pointer-events-none z-20" />
 
                   {/* Centered selection bar */}
-                  <div className="absolute inset-x-4 top-[66px] h-[44px] rounded-xl bg-[#2a241e]/90 border-y border-[#d4a373]/50 pointer-events-none z-0" />
+                  <div className="absolute inset-x-3 top-[66px] h-[44px] rounded-xl bg-[var(--accent-coffee)]/15 border-y border-[var(--accent-coffee)]/50 pointer-events-none z-0" />
 
                   {/* Vertical only scrollable container */}
                   <div
@@ -267,37 +276,33 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
                           key={opt}
                           onClick={() => handleOptionClick(opt, idx)}
                           style={{ scrollSnapAlign: 'center', height: `${itemHeight}px` }}
-                          className={`flex items-center justify-center cursor-pointer select-none transition-transform duration-100 ${
+                          className={`flex items-center justify-center cursor-pointer select-none transition-all duration-100 ${
                             isSelected
-                              ? 'text-[#f7f2ea] text-2xl font-serif font-bold scale-105'
-                              : 'text-[#6e6457] text-base font-serif scale-95 hover:text-[#9c9080]'
+                              ? 'text-[var(--text-main)] text-2xl font-serif font-bold scale-105'
+                              : 'text-[var(--text-muted)] text-base font-serif scale-95 hover:text-[var(--text-main)] opacity-60'
                           }`}
                         >
-                          <span className="mx-auto text-center">{opt}</span>
-                          {isSelected && (
-                            <span className="text-xs text-[#d4a373] font-sans font-medium ml-1">
-                              {unit}
-                            </span>
-                          )}
+                          {/* Centered number only - no "g" label */}
+                          <span className="w-full text-center leading-none">{opt}</span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-                <p className="text-[11px] text-[#786e62] mt-2">
-                  僅支援上下滾動選擇 · 建議範圍：{min}{unit} – {max}{unit}
+                <p className="text-[11px] text-[var(--text-muted)] mt-2">
+                  僅支援上下滾動 · 建議範圍：{min}{unit} – {max}{unit}
                 </p>
               </div>
             ) : (
-              /* Mode 2: In-situ Phone Numeric Keypad (No floating/jumping viewport!) */
+              /* Mode 2: In-situ Phone Numeric Keypad (No floating/jumping viewport) */
               <div className="my-2">
-                <div className="grid grid-cols-3 gap-2 max-w-[280px] mx-auto py-1">
+                <div className="grid grid-cols-3 gap-2 max-w-[240px] mx-auto py-1">
                   {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((btn) => (
                     <button
                       key={btn}
                       type="button"
                       onClick={() => handleKeypadPress(btn)}
-                      className="h-12 rounded-2xl bg-[#26211c] hover:bg-[#332c25] active:bg-[#3d342a] active:scale-95 text-[#f5efe6] font-serif text-xl font-bold flex items-center justify-center border border-[#362f28] transition-all cursor-pointer shadow-sm"
+                      className="h-11 rounded-2xl bg-[var(--bg-card-sub)] hover:bg-[var(--accent-coffee)]/20 active:scale-95 text-[var(--text-main)] font-serif text-lg font-bold flex items-center justify-center border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
                     >
                       {btn}
                     </button>
@@ -305,19 +310,19 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
                   <button
                     type="button"
                     onClick={handleKeypadDelete}
-                    className="h-12 rounded-2xl bg-[#26211c] hover:bg-[#332c25] active:bg-[#3d342a] active:scale-95 text-[#d4a373] flex items-center justify-center border border-[#362f28] transition-all cursor-pointer shadow-sm"
+                    className="h-11 rounded-2xl bg-[var(--bg-card-sub)] hover:bg-[var(--accent-coffee)]/20 active:scale-95 text-[var(--accent-coffee)] flex items-center justify-center border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
                     aria-label="刪除"
                   >
-                    <Delete size={20} />
+                    <Delete size={18} />
                   </button>
                 </div>
-                <p className="text-[11px] text-[#786e62] mt-2">
+                <p className="text-[11px] text-[var(--text-muted)] mt-2">
                   建議範圍：{min}{unit} – {max}{unit}
                 </p>
               </div>
             )}
 
-            {/* Liquid Glass Confirm Button */}
+            {/* Confirm Button */}
             <button
               type="button"
               onClick={() => {
@@ -329,9 +334,9 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
                 }
                 setIsOpen(false);
               }}
-              className="w-full mt-3 py-3.5 liquid-glass rounded-2xl text-[#161009] font-serif font-bold text-base flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full mt-3 py-3 liquid-glass rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
             >
-              <Check size={18} />
+              <Check size={16} />
               <span>確認設定</span>
             </button>
           </div>
@@ -340,3 +345,4 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
     </>
   );
 };
+export default PickerWheel;
