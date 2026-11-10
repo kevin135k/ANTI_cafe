@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { Recipe, ScaledStep } from '../types/recipe';
 import { ChevronLeft, Play } from 'lucide-react';
 import { PickerWheel } from './PickerWheel';
@@ -22,6 +23,8 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
 }) => {
   const [coffeeAmount, setCoffeeAmount] = useState<number>(recipe.defaultCoffee);
   const [waterAmount, setWaterAmount] = useState<number>(recipe.defaultWater);
+  // Track scroll state for dynamic navbar title transition
+  const [isScrolled, setIsScrolled] = useState<boolean>(false);
 
   // Guarantee page scrolls to top on entering recipe
   useEffect(() => {
@@ -29,6 +32,17 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [recipe.id]);
+
+  // Scroll listener to crossfade "準備這一杯" <-> recipe.name
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      setIsScrolled(scrollY > 35);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Ratio calculation: water per 1g coffee
   const baseRatio = recipe.defaultWater / recipe.defaultCoffee;
@@ -77,29 +91,52 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-main)] pb-32 fade-enter relative">
-      {/* Top Navbar: Sticky with Safe Area padding directly on it to never exceed or be blocked by iPhone status bar */}
-      <div className="sticky top-0 z-20 bg-[var(--bg-primary)]/95 backdrop-blur-md safe-top border-b border-[var(--border-color)] px-4 pb-3 flex items-center justify-between shadow-xs">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-main)] pb-36 fade-enter relative">
+      {/* Top Navbar: Sticky with Safe Area padding */}
+      <div className="sticky top-0 z-30 bg-[var(--bg-primary)]/95 backdrop-blur-md safe-top border-b border-[var(--border-color)] px-4 pb-3 flex items-center justify-between shadow-xs">
         <button
           onClick={onBack}
-          className="w-10 h-10 rounded-full liquid-glass-secondary flex items-center justify-center transition-colors cursor-pointer"
+          className="w-10 h-10 rounded-full liquid-glass-secondary flex items-center justify-center transition-colors cursor-pointer shrink-0"
           aria-label="返回"
         >
           <ChevronLeft size={22} />
         </button>
-        <h2 className="text-base font-medium text-[var(--text-main)]">準備這一杯</h2>
-        <div className="w-10" />
+
+        {/* Dynamic Center Title with Smooth Fade-in/Fade-out on Scroll */}
+        <div className="relative flex-1 text-center h-7 flex items-center justify-center overflow-hidden px-2">
+          {/* Top State: "準備這一杯" */}
+          <span
+            className={`absolute transition-all duration-300 font-medium text-base text-[var(--text-main)] ${
+              isScrolled
+                ? 'opacity-0 -translate-y-3 pointer-events-none'
+                : 'opacity-100 translate-y-0'
+            }`}
+          >
+            準備這一杯
+          </span>
+
+          {/* Scrolled Down State: Recipe Name */}
+          <span
+            className={`absolute transition-all duration-300 font-serif font-bold text-base text-[var(--accent-coffee)] truncate max-w-[200px] ${
+              isScrolled
+                ? 'opacity-100 translate-y-0'
+                : 'opacity-0 translate-y-3 pointer-events-none'
+            }`}
+          >
+            {recipe.name}
+          </span>
+        </div>
+
+        <div className="w-10 shrink-0" />
       </div>
 
       <div className="max-w-md mx-auto px-5 pt-4 text-left">
-        {/* Main Title Section */}
+        {/* Main Title Section: Removed "沖一杯" text and removed subtitle */}
         <div className="mb-5">
-          <h1 className="text-3xl font-serif font-bold text-[var(--text-main)] mb-1">
-            沖一杯{recipe.name}
-          </h1>
-          <p className="text-lg font-serif text-[var(--accent-coffee)] mb-2 font-medium">
+          <h1 className="text-3xl font-serif font-bold text-[var(--text-main)] mb-2 tracking-wide">
             {recipe.name}
-          </p>
+          </h1>
+
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
             <span className="font-semibold text-[var(--text-main)]">{recipe.defaultCoffee} g</span>
             <span>•</span>
@@ -207,24 +244,27 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Persistent Floating "開始計時" Action Button (Sized to fit text, floats continuously above content) */}
-      <div className="fixed bottom-6 left-0 right-0 flex justify-center z-30 pointer-events-none safe-bottom">
-        <button
-          onClick={() =>
-            onStartBrewing(
-              recipe,
-              coffeeAmount,
-              waterAmount,
-              scaledSteps,
-              ''
-            )
-          }
-          className="pointer-events-auto px-7 py-3.5 rounded-full liquid-glass font-bold text-base flex items-center gap-2.5 transition-all cursor-pointer shadow-lg active:scale-95"
-        >
-          <Play size={18} fill="currentColor" />
-          <span>開始計時</span>
-        </button>
-      </div>
+      {/* Persistent Floating "開始計時" Action Button - Portaled directly to body to guarantee screen viewport bottom placement */}
+      {createPortal(
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 pointer-events-none safe-bottom">
+          <button
+            onClick={() =>
+              onStartBrewing(
+                recipe,
+                coffeeAmount,
+                waterAmount,
+                scaledSteps,
+                ''
+              )
+            }
+            className="pointer-events-auto px-7 py-3.5 rounded-full liquid-glass font-bold text-base flex items-center gap-2.5 transition-all cursor-pointer shadow-xl active:scale-95"
+          >
+            <Play size={18} fill="currentColor" />
+            <span>開始計時</span>
+          </button>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

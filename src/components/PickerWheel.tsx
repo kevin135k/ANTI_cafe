@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Delete, X } from 'lucide-react';
 
 interface PickerWheelProps {
@@ -51,6 +52,21 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
       setKeypadText(value.toString());
     }
   }, [value, isOpen]);
+
+  // Prevent background scrolling completely while modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalTouchAction = document.body.style.touchAction;
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.touchAction = originalTouchAction;
+      };
+    }
+  }, [isOpen]);
 
   // Scroll wheel to current value when opening or switching to wheel
   useEffect(() => {
@@ -180,168 +196,175 @@ export const PickerWheel: React.FC<PickerWheelProps> = ({
         </span>
       </button>
 
-      {/* Pop-out Centered Floating Modal Dialog (Not a Bottom Sheet) */}
-      {isOpen && (
-        <div
-          data-picker-modal="true"
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 fade-enter"
-          onClick={() => setIsOpen(false)}
-        >
+      {/* Pop-out Centered Floating Modal Dialog - Rendered via Portal directly to body */}
+      {isOpen &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[320px] sm:max-w-xs bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-5 shadow-2xl text-center relative animate-pop-in select-none"
+            data-picker-modal="true"
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 fade-enter"
+            onClick={() => setIsOpen(false)}
+            onTouchMove={(e) => {
+              // Block background scroll while touching modal backdrop
+              if (e.target === e.currentTarget) {
+                e.preventDefault();
+              }
+            }}
           >
-            {/* Header: Label, Close Button, & Tab Switcher */}
-            <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-base font-serif font-bold text-[var(--text-main)]">
-                調整{label}
-              </span>
-
-              <div className="flex items-center gap-2">
-                {/* Segmented Tab Switcher */}
-                <div className="flex rounded-xl bg-[var(--bg-card-sub)] p-0.5 border border-[var(--border-color)]">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('wheel')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                      activeTab === 'wheel'
-                        ? 'liquid-glass text-white dark:text-[#1a1208] font-bold shadow-sm'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-                    }`}
-                  >
-                    滾輪
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('keypad');
-                      setKeypadText(tempValue.toString());
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                      activeTab === 'keypad'
-                        ? 'liquid-glass text-white dark:text-[#1a1208] font-bold shadow-sm'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-                    }`}
-                  >
-                    鍵盤
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="w-7 h-7 rounded-full bg-[var(--bg-card-sub)] text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center justify-center transition-colors cursor-pointer"
-                  aria-label="關閉"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-
-            {/* Central Display Value */}
-            <div className="my-2 py-2 px-3 rounded-2xl bg-[var(--bg-card-sub)] border border-[var(--border-color)] flex items-center justify-center gap-1.5">
-              <span className="text-xs text-[var(--text-muted)]">目前設定：</span>
-              <span className="font-serif text-3xl font-bold text-[var(--accent-coffee)]">
-                {activeTab === 'keypad' ? keypadText : tempValue}
-              </span>
-              <span className="text-sm text-[var(--accent-coffee)] font-medium">{unit}</span>
-            </div>
-
-            {/* Mode 1: Strict Vertical-Only Picker Wheel (NO "g" next to options, only numbers) */}
-            {activeTab === 'wheel' ? (
-              <div className="my-3">
-                <div className="relative w-full h-[176px] overflow-hidden flex items-center justify-center bg-[var(--bg-card-sub)] rounded-2xl border border-[var(--border-color)]">
-                  {/* Top & Bottom gradient mask */}
-                  <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-[var(--bg-card-sub)] to-transparent pointer-events-none z-20" />
-                  <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--bg-card-sub)] to-transparent pointer-events-none z-20" />
-
-                  {/* Centered selection bar */}
-                  <div className="absolute inset-x-3 top-[66px] h-[44px] rounded-xl bg-[var(--accent-coffee)]/15 border-y border-[var(--accent-coffee)]/50 pointer-events-none z-0" />
-
-                  {/* Vertical only scrollable container */}
-                  <div
-                    ref={scrollContainerRef}
-                    onScroll={handleWheelScroll}
-                    style={{
-                      scrollSnapType: 'y mandatory',
-                      WebkitOverflowScrolling: 'touch',
-                      touchAction: 'pan-y', // Disable horizontal scroll completely!
-                    }}
-                    className="w-full h-full overflow-y-scroll overflow-x-hidden no-scrollbar py-[66px] relative z-10"
-                  >
-                    {options.map((opt, idx) => {
-                      const isSelected = Math.abs(opt - tempValue) < step / 2;
-                      return (
-                        <div
-                          key={opt}
-                          onClick={() => handleOptionClick(opt, idx)}
-                          style={{ scrollSnapAlign: 'center', height: `${itemHeight}px` }}
-                          className={`flex items-center justify-center cursor-pointer select-none transition-all duration-100 ${
-                            isSelected
-                              ? 'text-[var(--text-main)] text-2xl font-serif font-bold scale-105'
-                              : 'text-[var(--text-muted)] text-base font-serif scale-95 hover:text-[var(--text-main)] opacity-60'
-                          }`}
-                        >
-                          {/* Centered number only - no "g" label */}
-                          <span className="w-full text-center leading-none">{opt}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <p className="text-[11px] text-[var(--text-muted)] mt-2">
-                  僅支援上下滾動 · 建議範圍：{min}{unit} – {max}{unit}
-                </p>
-              </div>
-            ) : (
-              /* Mode 2: In-situ Phone Numeric Keypad (No floating/jumping viewport) */
-              <div className="my-2">
-                <div className="grid grid-cols-3 gap-2 max-w-[240px] mx-auto py-1">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((btn) => (
-                    <button
-                      key={btn}
-                      type="button"
-                      onClick={() => handleKeypadPress(btn)}
-                      className="h-11 rounded-2xl bg-[var(--bg-card-sub)] hover:bg-[var(--accent-coffee)]/20 active:scale-95 text-[var(--text-main)] font-serif text-lg font-bold flex items-center justify-center border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
-                    >
-                      {btn}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleKeypadDelete}
-                    className="h-11 rounded-2xl bg-[var(--bg-card-sub)] hover:bg-[var(--accent-coffee)]/20 active:scale-95 text-[var(--accent-coffee)] flex items-center justify-center border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
-                    aria-label="刪除"
-                  >
-                    <Delete size={18} />
-                  </button>
-                </div>
-                <p className="text-[11px] text-[var(--text-muted)] mt-2">
-                  建議範圍：{min}{unit} – {max}{unit}
-                </p>
-              </div>
-            )}
-
-            {/* Confirm Button */}
-            <button
-              type="button"
-              onClick={() => {
-                const parsed = parseFloat(keypadText);
-                if (!isNaN(parsed) && parsed >= min && parsed <= max) {
-                  onChange(parsed);
-                } else {
-                  onChange(tempValue);
-                }
-                setIsOpen(false);
-              }}
-              className="w-full mt-3 py-3 liquid-glass rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[320px] sm:max-w-xs bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-5 shadow-2xl text-center relative animate-pop-in select-none"
             >
-              <Check size={16} />
-              <span>確認設定</span>
-            </button>
-          </div>
-        </div>
-      )}
+              {/* Header: Label, Close Button, & Tab Switcher */}
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-base font-serif font-bold text-[var(--text-main)]">
+                  調整{label}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  {/* Segmented Tab Switcher */}
+                  <div className="flex rounded-xl bg-[var(--bg-card-sub)] p-0.5 border border-[var(--border-color)]">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('wheel')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                        activeTab === 'wheel'
+                          ? 'liquid-glass text-white dark:text-[#1a1208] font-bold shadow-sm'
+                          : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                      }`}
+                    >
+                      滾輪
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('keypad');
+                        setKeypadText(tempValue.toString());
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                        activeTab === 'keypad'
+                          ? 'liquid-glass text-white dark:text-[#1a1208] font-bold shadow-sm'
+                          : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                      }`}
+                    >
+                      鍵盤
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="w-7 h-7 rounded-full bg-[var(--bg-card-sub)] text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center justify-center transition-colors cursor-pointer"
+                    aria-label="關閉"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Central Display Value */}
+              <div className="my-2 py-2 px-3 rounded-2xl bg-[var(--bg-card-sub)] border border-[var(--border-color)] flex items-center justify-center gap-1.5">
+                <span className="text-xs text-[var(--text-muted)]">目前設定：</span>
+                <span className="font-serif text-3xl font-bold text-[var(--accent-coffee)]">
+                  {activeTab === 'keypad' ? keypadText : tempValue}
+                </span>
+                <span className="text-sm text-[var(--accent-coffee)] font-medium">{unit}</span>
+              </div>
+
+              {/* Mode 1: Strict Vertical-Only Picker Wheel (No 'g' label) */}
+              {activeTab === 'wheel' ? (
+                <div className="my-3">
+                  <div className="relative w-full h-[176px] overflow-hidden flex items-center justify-center bg-[var(--bg-card-sub)] rounded-2xl border border-[var(--border-color)]">
+                    {/* Top & Bottom gradient mask */}
+                    <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-[var(--bg-card-sub)] to-transparent pointer-events-none z-20" />
+                    <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--bg-card-sub)] to-transparent pointer-events-none z-20" />
+
+                    {/* Centered selection bar */}
+                    <div className="absolute inset-x-3 top-[66px] h-[44px] rounded-xl bg-[var(--accent-coffee)]/15 border-y border-[var(--accent-coffee)]/50 pointer-events-none z-0" />
+
+                    {/* Vertical only scrollable container */}
+                    <div
+                      ref={scrollContainerRef}
+                      onScroll={handleWheelScroll}
+                      style={{
+                        scrollSnapType: 'y mandatory',
+                        WebkitOverflowScrolling: 'touch',
+                        touchAction: 'pan-y',
+                      }}
+                      className="w-full h-full overflow-y-scroll overflow-x-hidden no-scrollbar py-[66px] relative z-10"
+                    >
+                      {options.map((opt, idx) => {
+                        const isSelected = Math.abs(opt - tempValue) < step / 2;
+                        return (
+                          <div
+                            key={opt}
+                            onClick={() => handleOptionClick(opt, idx)}
+                            style={{ scrollSnapAlign: 'center', height: `${itemHeight}px` }}
+                            className={`flex items-center justify-center cursor-pointer select-none transition-all duration-100 ${
+                              isSelected
+                                ? 'text-[var(--text-main)] text-2xl font-serif font-bold scale-105'
+                                : 'text-[var(--text-muted)] text-base font-serif scale-95 hover:text-[var(--text-main)] opacity-60'
+                            }`}
+                          >
+                            <span className="w-full text-center leading-none">{opt}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-2">
+                    僅支援上下滾動 · 建議範圍：{min}{unit} – {max}{unit}
+                  </p>
+                </div>
+              ) : (
+                /* Mode 2: In-situ Phone Numeric Keypad */
+                <div className="my-2">
+                  <div className="grid grid-cols-3 gap-2 max-w-[240px] mx-auto py-1">
+                    {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map((btn) => (
+                      <button
+                        key={btn}
+                        type="button"
+                        onClick={() => handleKeypadPress(btn)}
+                        className="h-11 rounded-2xl bg-[var(--bg-card-sub)] hover:bg-[var(--accent-coffee)]/20 active:scale-95 text-[var(--text-main)] font-serif text-lg font-bold flex items-center justify-center border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
+                      >
+                        {btn}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleKeypadDelete}
+                      className="h-11 rounded-2xl bg-[var(--bg-card-sub)] hover:bg-[var(--accent-coffee)]/20 active:scale-95 text-[var(--accent-coffee)] flex items-center justify-center border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
+                      aria-label="刪除"
+                    >
+                      <Delete size={18} />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-2">
+                    建議範圍：{min}{unit} – {max}{unit}
+                  </p>
+                </div>
+              )}
+
+              {/* Confirm Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const parsed = parseFloat(keypadText);
+                  if (!isNaN(parsed) && parsed >= min && parsed <= max) {
+                    onChange(parsed);
+                  } else {
+                    onChange(tempValue);
+                  }
+                  setIsOpen(false);
+                }}
+                className="w-full mt-3 py-3 liquid-glass rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <Check size={16} />
+                <span>確認設定</span>
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 };

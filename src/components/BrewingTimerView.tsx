@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { Recipe, ScaledStep } from '../types/recipe';
 import { sound } from '../utils/sound';
 import { requestWakeLock, releaseWakeLock } from '../utils/wakeLock';
@@ -222,8 +223,15 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
 
       {/* Main Center Area */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-1">
+        {/* Current Selected Recipe Name above the circular timer */}
+        <div className="text-center mb-1">
+          <h2 className="text-xl sm:text-2xl font-serif font-bold text-[var(--text-main)] tracking-wide">
+            {recipe.name}
+          </h2>
+        </div>
+
         {/* Big Circular Countdown Ring */}
-        <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-2">
+        <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-1">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 280 280">
             {/* Background Circle */}
             <circle
@@ -264,7 +272,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
         </div>
 
         {/* Dynamic Now & Next Push-Transition Area (圓圈下方) */}
-        <div className="w-full max-w-xs text-center my-2 min-h-[70px] flex flex-col justify-center overflow-hidden">
+        <div className="w-full max-w-xs text-center my-1.5 min-h-[66px] flex flex-col justify-center overflow-hidden">
           {/* Keyed container for push-up transition */}
           <div key={slideKey} className="step-slide-in flex flex-col items-center">
             {/* Line 1: Bold theme color "Now: <當前操作提示>" */}
@@ -286,7 +294,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
         </div>
 
         {/* Line 3: Target Weight on Scale (秤上應為) */}
-        <div className="text-center my-1.5 py-1 px-4 rounded-2xl bg-[var(--bg-card-sub)] border border-[var(--border-color)] inline-flex flex-col items-center shadow-xs">
+        <div className="text-center my-1 py-1 px-4 rounded-2xl bg-[var(--bg-card-sub)] border border-[var(--border-color)] inline-flex flex-col items-center shadow-xs">
           <span className="text-[11px] text-[var(--text-muted)] tracking-wider font-medium">
             秤上應為
           </span>
@@ -395,92 +403,96 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
       </div>
 
       {/* Exit Confirmation Modal (When timer is running or active) */}
-      {showExitConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 fade-enter">
-          <div className="w-full max-w-xs bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-6 shadow-2xl text-center animate-pop-in">
-            <div className="w-12 h-12 rounded-full bg-[var(--accent-coffee)]/15 text-[var(--accent-coffee)] flex items-center justify-center mx-auto mb-3">
-              <AlertTriangle size={24} />
-            </div>
+      {showExitConfirm &&
+        createPortal(
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 fade-enter">
+            <div className="w-full max-w-xs bg-[var(--bg-card)] border border-[var(--border-color)] rounded-3xl p-6 shadow-2xl text-center animate-pop-in">
+              <div className="w-12 h-12 rounded-full bg-[var(--accent-coffee)]/15 text-[var(--accent-coffee)] flex items-center justify-center mx-auto mb-3">
+                <AlertTriangle size={24} />
+              </div>
 
-            <h3 className="text-lg font-serif font-bold text-[var(--text-main)] mb-1.5">
-              結束沖煮？
-            </h3>
-            <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-5">
-              計時器正在運作中，確定要結束本次沖煮並返回嗎？
-            </p>
+              <h3 className="text-lg font-serif font-bold text-[var(--text-main)] mb-1.5">
+                結束沖煮？
+              </h3>
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-5">
+                計時器正在運作中，確定要結束本次沖煮並返回嗎？
+              </p>
 
-            <div className="flex gap-2.5">
-              <button
-                type="button"
-                onClick={() => setShowExitConfirm(false)}
-                className="flex-1 py-3 rounded-2xl liquid-glass-secondary font-medium text-xs transition-colors cursor-pointer"
-              >
-                繼續沖煮
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowExitConfirm(false);
-                  onClose();
-                }}
-                className="flex-1 py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-md"
-              >
-                確定退出
-              </button>
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 py-3 rounded-2xl liquid-glass-secondary font-medium text-xs transition-colors cursor-pointer"
+                >
+                  繼續沖煮
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExitConfirm(false);
+                    onClose();
+                  }}
+                  className="flex-1 py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-md"
+                >
+                  確定退出
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* Completion Modal */}
-      {isCompleted && (
-        <div className="absolute inset-0 z-50 bg-[var(--bg-primary)]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in safe-top safe-bottom">
-          <div className="w-16 h-16 rounded-full bg-[var(--bg-card-sub)] border border-[var(--accent-coffee)] flex items-center justify-center text-[var(--accent-coffee)] mb-3">
-            <Award size={36} />
-          </div>
-
-          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text-main)] mb-1.5">
-            沖煮完成！
-          </h2>
-          <p className="text-sm text-[var(--text-muted)] mb-5">
-            享受這杯精心萃取的 {recipe.name}
-          </p>
-
-          <div className="w-full max-w-xs bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4 mb-5 text-left space-y-2 text-xs sm:text-sm">
-            <div className="flex justify-between text-[var(--text-muted)]">
-              <span>使用配方</span>
-              <span className="text-[var(--text-main)] font-medium">{recipe.name}</span>
+      {isCompleted &&
+        createPortal(
+          <div className="fixed inset-0 z-50 bg-[var(--bg-primary)]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in safe-top safe-bottom">
+            <div className="w-16 h-16 rounded-full bg-[var(--bg-card-sub)] border border-[var(--accent-coffee)] flex items-center justify-center text-[var(--accent-coffee)] mb-3">
+              <Award size={36} />
             </div>
-            <div className="flex justify-between text-[var(--text-muted)]">
-              <span>粉水參數</span>
-              <span className="text-[var(--accent-coffee)] font-medium font-mono">
-                {coffeeAmount}g / {waterAmount}g
-              </span>
-            </div>
-            <div className="flex justify-between text-[var(--text-muted)]">
-              <span>總沖煮時間</span>
-              <span className="text-[var(--text-main)] font-medium font-mono">
-                {formatTime(totalElapsedSeconds)}
-              </span>
-            </div>
-          </div>
 
-          <div className="flex flex-col gap-3 w-full max-w-xs">
-            <button
-              onClick={handleReset}
-              className="w-full py-3.5 liquid-glass-secondary font-medium text-sm rounded-2xl transition-colors cursor-pointer"
-            >
-              再次沖煮
-            </button>
-            <button
-              onClick={onClose}
-              className="w-full py-3.5 liquid-glass font-bold text-sm rounded-2xl shadow-lg cursor-pointer"
-            >
-              完成並返回模板庫
-            </button>
-          </div>
-        </div>
-      )}
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[var(--text-main)] mb-1.5">
+              沖煮完成！
+            </h2>
+            <p className="text-sm text-[var(--text-muted)] mb-5">
+              享受這杯精心萃取的 {recipe.name}
+            </p>
+
+            <div className="w-full max-w-xs bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4 mb-5 text-left space-y-2 text-xs sm:text-sm">
+              <div className="flex justify-between text-[var(--text-muted)]">
+                <span>使用配方</span>
+                <span className="text-[var(--text-main)] font-medium">{recipe.name}</span>
+              </div>
+              <div className="flex justify-between text-[var(--text-muted)]">
+                <span>粉水參數</span>
+                <span className="text-[var(--accent-coffee)] font-medium font-mono">
+                  {coffeeAmount}g / {waterAmount}g
+                </span>
+              </div>
+              <div className="flex justify-between text-[var(--text-muted)]">
+                <span>總沖煮時間</span>
+                <span className="text-[var(--text-main)] font-medium font-mono">
+                  {formatTime(totalElapsedSeconds)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+              <button
+                onClick={handleReset}
+                className="w-full py-3.5 liquid-glass-secondary font-medium text-sm rounded-2xl transition-colors cursor-pointer"
+              >
+                再次沖煮
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full py-3.5 liquid-glass font-bold text-sm rounded-2xl shadow-lg cursor-pointer"
+              >
+                完成並返回模板庫
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
