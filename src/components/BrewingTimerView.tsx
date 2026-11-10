@@ -20,6 +20,7 @@ interface BrewingTimerViewProps {
   coffeeAmount: number;
   waterAmount: number;
   scaledSteps: ScaledStep[];
+  iceAmount?: number;
   onClose: () => void;
 }
 
@@ -28,6 +29,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
   coffeeAmount,
   waterAmount,
   scaledSteps,
+  iceAmount,
   onClose,
 }) => {
   // Current active step index (0-indexed)
@@ -465,7 +467,7 @@ export const BrewingTimerView: React.FC<BrewingTimerViewProps> = ({
               <div className="flex justify-between text-[var(--text-muted)]">
                 <span>粉水參數</span>
                 <span className="text-[var(--accent-coffee)] font-medium font-mono">
-                  {coffeeAmount}g / {waterAmount}g
+                  {coffeeAmount}g / {iceAmount && iceAmount > 0 ? `熱水 ${waterAmount}g + 冰塊 ${iceAmount}g` : `${waterAmount}g`}
                 </span>
               </div>
               <div className="flex justify-between text-[var(--text-muted)]">

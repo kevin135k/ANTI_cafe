@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { RECIPES } from './data/recipes';
 import type { Recipe, ScaledStep, BrewerType } from './types/recipe';
 import { RecipeCard } from './components/RecipeCard';
 import { RecipeDetailView } from './components/RecipeDetailView';
 import { BrewingTimerView } from './components/BrewingTimerView';
-import { Coffee, Search, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
+import { CustomRecipeCreator } from './components/CustomRecipeCreator';
+import { Coffee, Search, ChevronLeft, ChevronRight, Sun, Moon, Plus } from 'lucide-react';
 
 export function App() {
   const [selectedCategory, setSelectedCategory] = useState<BrewerType>('All');
@@ -13,9 +14,19 @@ export function App() {
   // Theme state: dark | light (Toggled by clicking the top-left coffee cup icon)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
-  // Navigation state
+  // Custom Recipes stored in localStorage
+  const [customRecipes, setCustomRecipes] = useState<Recipe[]>(() => {
+    try {
+      const saved = localStorage.getItem('anti_cafe_custom_recipes');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Navigation state: 'library' | 'detail' | 'timer' | 'custom-creator'
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
-  const [viewMode, setViewMode] = useState<'library' | 'detail' | 'timer'>('library');
+  const [viewMode, setViewMode] = useState<'library' | 'detail' | 'timer' | 'custom-creator'>('library');
 
   // Swipe gesture state
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
@@ -27,6 +38,7 @@ export function App() {
     waterAmount: number;
     scaledSteps: ScaledStep[];
     beanName: string;
+    iceAmount?: number;
   } | null>(null);
 
   // Apply theme class to <html>
@@ -42,18 +54,45 @@ export function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  // Combine default and custom recipes
+  const allRecipes = useMemo(() => {
+    return [...customRecipes, ...RECIPES];
+  }, [customRecipes]);
+
+  // Compute available categories dynamically
+  const categories: BrewerType[] = useMemo(() => {
+    const defaultCats = [
+      'All',
+      '自訂',
+      'V60',
+      'Chemex',
+      'Kalita Wave',
+      'Origami',
+      '聰明濾杯',
+      'Melitta',
+      'April',
+      '冰手沖',
+    ];
+    // Gather any additional custom drippers from custom recipes
+    const customCats = customRecipes
+      .map((r) => r.category)
+      .filter((c) => !defaultCats.includes(c));
+
+    return [...defaultCats, ...Array.from(new Set(customCats))];
+  }, [customRecipes]);
+
   // Dual Edge Swipe Navigation:
   // Restricted strictly to 'library' and 'detail' (準備這一杯).
-  // Disabled when in 'timer' or when the Picker modal (調整克數與水量) is open.
+  // Disabled when in 'timer', 'custom-creator', or when the Picker modal is open.
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
-      // 1. Strictly forbidden in timer view
-      if (viewMode === 'timer') {
+      // Disabled in timer or custom creator
+      if (viewMode === 'timer' || viewMode === 'custom-creator') {
         touchStartRef.current = null;
         return;
       }
 
-      // 2. Strictly forbidden when adjusting grams / water (picker modal is open)
+      // Disabled when adjusting grams / water (picker modal is open)
       if (document.querySelector('[data-picker-modal]')) {
         touchStartRef.current = null;
         return;
@@ -75,7 +114,7 @@ export function App() {
 
     const handleTouchMove = (e: TouchEvent) => {
       if (!touchStartRef.current || !touchStartRef.current.edge) return;
-      if (viewMode === 'timer' || document.querySelector('[data-picker-modal]')) {
+      if (viewMode === 'timer' || viewMode === 'custom-creator' || document.querySelector('[data-picker-modal]')) {
         touchStartRef.current = null;
         setSwipeOffset(0);
         return;
@@ -94,7 +133,7 @@ export function App() {
 
     const handleTouchEnd = (e: TouchEvent) => {
       if (!touchStartRef.current || !touchStartRef.current.edge) return;
-      if (viewMode === 'timer' || document.querySelector('[data-picker-modal]')) {
+      if (viewMode === 'timer' || viewMode === 'custom-creator' || document.querySelector('[data-picker-modal]')) {
         touchStartRef.current = null;
         setSwipeOffset(0);
         return;
@@ -134,20 +173,29 @@ export function App() {
   }, [viewMode, activeRecipe]);
 
   // Filter recipes
-  const filteredRecipes = RECIPES.filter((r) => {
-    const matchesCategory =
-      selectedCategory === 'All' || r.category === selectedCategory;
+  const filteredRecipes = allRecipes.filter((r) => {
+    let matchesCategory = false;
+    if (selectedCategory === 'All') {
+      matchesCategory = true;
+    } else if (selectedCategory === '自訂') {
+      matchesCategory = Boolean(r.isCustom);
+    } else if (selectedCategory === '冰手沖') {
+      matchesCategory = r.category === '冰手沖' || Boolean(r.defaultIce && r.defaultIce > 0);
+    } else {
+      matchesCategory = r.category === selectedCategory;
+    }
+
     const matchesSearch =
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.referenceAuthor.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.summary.toLowerCase().includes(searchQuery.toLowerCase());
+
     return matchesCategory && matchesSearch;
   });
 
   const handleSelectRecipe = (recipe: Recipe) => {
     setActiveRecipe(recipe);
     setViewMode('detail');
-    // Ensure viewport immediately returns to the top
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
@@ -163,7 +211,8 @@ export function App() {
     coffeeAmount: number,
     waterAmount: number,
     scaledSteps: ScaledStep[],
-    beanName: string
+    beanName: string,
+    iceAmount?: number
   ) => {
     setActiveRecipe(recipe);
     setBrewConfig({
@@ -171,9 +220,50 @@ export function App() {
       waterAmount,
       scaledSteps,
       beanName,
+      iceAmount,
     });
     setViewMode('timer');
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  };
+
+  // Custom Recipe Persistence
+  const handleSaveCustomRecipe = (recipe: Recipe) => {
+    setCustomRecipes((prev) => {
+      const existingIdx = prev.findIndex((r) => r.id === recipe.id || r.name === recipe.name);
+      let updated: Recipe[];
+      if (existingIdx !== -1) {
+        updated = [...prev];
+        updated[existingIdx] = recipe;
+      } else {
+        updated = [recipe, ...prev];
+      }
+      try {
+        localStorage.setItem('anti_cafe_custom_recipes', JSON.stringify(updated));
+      } catch {
+        // storage fallback
+      }
+      return updated;
+    });
+
+    setActiveRecipe(recipe);
+    setViewMode('detail');
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  };
+
+  const handleDeleteCustomRecipe = (recipeId: string) => {
+    setCustomRecipes((prev) => {
+      const updated = prev.filter((r) => r.id !== recipeId);
+      try {
+        localStorage.setItem('anti_cafe_custom_recipes', JSON.stringify(updated));
+      } catch {
+        // storage fallback
+      }
+      return updated;
+    });
+
+    if (activeRecipe?.id === recipeId) {
+      setActiveRecipe(null);
+    }
   };
 
   return (
@@ -199,7 +289,7 @@ export function App() {
       {/* View 1: Recipe Library (模板庫) */}
       {viewMode === 'library' && (
         <div className="max-w-md mx-auto pb-12 fade-enter">
-          {/* Sticky Header: Has safe-top directly on it to stay pinned without exceeding phone status bar */}
+          {/* Sticky Header with iPhone Status Bar Clearance */}
           <div className="sticky top-0 z-30 bg-[var(--bg-primary)]/95 backdrop-blur-md safe-top px-4 pb-2 border-b border-[var(--border-color)] shadow-xs">
             {/* Title Bar */}
             <div className="flex items-center justify-between mb-2.5 pt-1">
@@ -220,23 +310,32 @@ export function App() {
                 </h1>
               </div>
 
-              {/* Previously viewed quick return badge */}
-              {activeRecipe ? (
+              {/* Action Buttons: Add Recipe & Quick Return Badge */}
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    setViewMode('detail');
+                    setViewMode('custom-creator');
                     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                   }}
-                  className="text-xs text-[var(--accent-coffee)] px-3 py-1 rounded-full liquid-glass-secondary flex items-center gap-1 cursor-pointer active:scale-95"
+                  className="px-3 py-1.5 rounded-full liquid-glass text-xs font-bold flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
                 >
-                  <span className="truncate max-w-[90px]">{activeRecipe.name}</span>
-                  <ChevronRight size={13} />
+                  <Plus size={14} />
+                  <span>新增配方</span>
                 </button>
-              ) : (
-                <span className="text-xs text-[var(--text-muted)] px-2.5 py-1 rounded-full liquid-glass-secondary">
-                  {RECIPES.length} 款手沖配方
-                </span>
-              )}
+
+                {activeRecipe && (
+                  <button
+                    onClick={() => {
+                      setViewMode('detail');
+                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                    }}
+                    className="text-xs text-[var(--accent-coffee)] px-3 py-1.5 rounded-full liquid-glass-secondary flex items-center gap-1 cursor-pointer active:scale-95"
+                  >
+                    <span className="truncate max-w-[80px]">{activeRecipe.name}</span>
+                    <ChevronRight size={13} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Search Bar */}
@@ -254,26 +353,36 @@ export function App() {
               />
             </div>
 
-            {/* Category Filter Pills (Liquid Glass Style) */}
+            {/* Category Filter Pills (Liquid Glass Style with Custom Filter & Add) */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-              {(['All', 'V60', 'Kalita Wave', 'Origami', '冰手沖'] as BrewerType[]).map(
-                (category) => {
-                  const isSelected = selectedCategory === category;
-                  return (
-                    <button
-                      key={category}
-                      onClick={() => handleCategoryChange(category)}
-                      className={`px-3.5 py-1 text-xs rounded-full whitespace-nowrap transition-all duration-150 cursor-pointer ${
-                        isSelected
-                          ? 'liquid-glass font-bold shadow-md'
-                          : 'liquid-glass-secondary text-[var(--text-muted)] hover:text-[var(--text-main)]'
-                      }`}
-                    >
-                      {category === 'All' ? '全部配方' : category}
-                    </button>
-                  );
-                }
-              )}
+              {categories.map((category) => {
+                const isSelected = selectedCategory === category;
+                return (
+                  <button
+                    key={category}
+                    onClick={() => handleCategoryChange(category)}
+                    className={`px-3.5 py-1 text-xs rounded-full whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                      isSelected
+                        ? 'liquid-glass font-bold shadow-md'
+                        : 'liquid-glass-secondary text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    {category === 'All' ? '全部配方' : category}
+                  </button>
+                );
+              })}
+
+              {/* <新增> Pill */}
+              <button
+                onClick={() => {
+                  setViewMode('custom-creator');
+                  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                }}
+                className="px-3.5 py-1 text-xs rounded-full whitespace-nowrap liquid-glass-secondary text-[var(--accent-coffee)] hover:text-[var(--text-main)] flex items-center gap-1 cursor-pointer"
+              >
+                <Plus size={11} />
+                <span>新增</span>
+              </button>
             </div>
           </div>
 
@@ -285,11 +394,20 @@ export function App() {
                   key={recipe.id}
                   recipe={recipe}
                   onSelect={handleSelectRecipe}
+                  onDelete={recipe.isCustom ? handleDeleteCustomRecipe : undefined}
                 />
               ))
             ) : (
               <div className="py-20 text-center text-[var(--text-muted)]">
                 <p className="text-sm">沒有符合條件的沖煮配方</p>
+                {selectedCategory === '自訂' && (
+                  <button
+                    onClick={() => setViewMode('custom-creator')}
+                    className="mt-4 px-4 py-2 rounded-2xl liquid-glass text-xs font-bold cursor-pointer"
+                  >
+                    建立第一個自訂配方
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -325,10 +443,23 @@ export function App() {
           coffeeAmount={brewConfig.coffeeAmount}
           waterAmount={brewConfig.waterAmount}
           scaledSteps={brewConfig.scaledSteps}
+          iceAmount={brewConfig.iceAmount}
           onClose={() => {
             setViewMode('detail');
             window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           }}
+        />
+      )}
+
+      {/* View 4: Custom Recipe Creator (自訂食譜) */}
+      {viewMode === 'custom-creator' && (
+        <CustomRecipeCreator
+          onBack={() => {
+            setViewMode('library');
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }}
+          onSave={handleSaveCustomRecipe}
+          existingRecipes={allRecipes}
         />
       )}
     </div>

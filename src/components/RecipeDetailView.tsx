@@ -12,7 +12,8 @@ interface RecipeDetailViewProps {
     coffeeAmount: number,
     waterAmount: number,
     scaledSteps: ScaledStep[],
-    beanName: string
+    beanName: string,
+    iceAmount?: number
   ) => void;
 }
 
@@ -23,6 +24,8 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
 }) => {
   const [coffeeAmount, setCoffeeAmount] = useState<number>(recipe.defaultCoffee);
   const [waterAmount, setWaterAmount] = useState<number>(recipe.defaultWater);
+  const [iceAmount, setIceAmount] = useState<number>(recipe.defaultIce || 0);
+
   // Track scroll state for dynamic navbar title transition
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
 
@@ -44,21 +47,51 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Ratio calculation: water per 1g coffee
-  const baseRatio = recipe.defaultWater / recipe.defaultCoffee;
+  const defaultIce = recipe.defaultIce || 0;
+  const hasIce = defaultIce > 0;
 
-  // Scale calculations
+  // Total liquid ratio: (water + ice) / coffee
+  const baseTotalLiquid = recipe.defaultWater + defaultIce;
+  const baseTotalRatio = baseTotalLiquid / recipe.defaultCoffee;
+  const waterShare = baseTotalLiquid > 0 ? recipe.defaultWater / baseTotalLiquid : 1;
+
+  // Scale calculations with Ice taken into account
   const handleCoffeeChange = (value: number) => {
     if (isNaN(value) || value <= 0) return;
     setCoffeeAmount(value);
-    const calculatedWater = Math.round(value * baseRatio);
-    setWaterAmount(calculatedWater);
+    if (hasIce && baseTotalLiquid > 0) {
+      const totalLiquid = Math.round(value * baseTotalRatio);
+      const newWater = Math.round(totalLiquid * waterShare);
+      const newIce = totalLiquid - newWater;
+      setWaterAmount(newWater);
+      setIceAmount(newIce);
+    } else {
+      const calculatedWater = Math.round(value * (recipe.defaultWater / recipe.defaultCoffee));
+      setWaterAmount(calculatedWater);
+    }
   };
 
   const handleWaterChange = (value: number) => {
     if (isNaN(value) || value <= 0) return;
     setWaterAmount(value);
-    const calculatedCoffee = Math.round((value / baseRatio) * 10) / 10;
+    if (hasIce && recipe.defaultWater > 0) {
+      const newIce = Math.round(value * (defaultIce / recipe.defaultWater));
+      setIceAmount(newIce);
+      const totalLiquid = value + newIce;
+      const calculatedCoffee = Math.round((totalLiquid / baseTotalRatio) * 10) / 10;
+      setCoffeeAmount(calculatedCoffee);
+    } else {
+      const calculatedCoffee =
+        Math.round((value / (recipe.defaultWater / recipe.defaultCoffee)) * 10) / 10;
+      setCoffeeAmount(calculatedCoffee);
+    }
+  };
+
+  const handleIceChange = (value: number) => {
+    if (isNaN(value) || value < 0) return;
+    setIceAmount(value);
+    const totalLiquid = waterAmount + value;
+    const calculatedCoffee = Math.round((totalLiquid / baseTotalRatio) * 10) / 10;
     setCoffeeAmount(calculatedCoffee);
   };
 
@@ -75,20 +108,30 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
         accumulated += scaledWater;
       }
 
+      // If step title mentions original ice amount, scale that mention as well
+      let title = step.title;
+      if (hasIce && defaultIce > 0 && title.includes('冰塊')) {
+        title = title.replace(/\d+\s*g\s*冰塊/, `${iceAmount}g 冰塊`);
+      }
+
       return {
         ...step,
+        title,
         stepNumber: idx + 1,
         scaledWater,
         accumulatedWater: accumulated,
       };
     });
-  }, [recipe, waterAmount]);
+  }, [recipe, waterAmount, iceAmount, hasIce, defaultIce]);
 
   const formatSeconds = (sec: number) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
+
+  const totalLiquid = waterAmount + iceAmount;
+  const currentRatioText = coffeeAmount > 0 ? (totalLiquid / coffeeAmount).toFixed(1) : '0';
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-main)] pb-36 fade-enter relative">
@@ -131,7 +174,7 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
       </div>
 
       <div className="max-w-md mx-auto px-5 pt-4 text-left">
-        {/* Main Title Section: Removed "沖一杯" text and removed subtitle */}
+        {/* Main Title Section */}
         <div className="mb-5">
           <h1 className="text-3xl font-serif font-bold text-[var(--text-main)] mb-2 tracking-wide">
             {recipe.name}
@@ -140,12 +183,18 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
             <span className="font-semibold text-[var(--text-main)]">{recipe.defaultCoffee} g</span>
             <span>•</span>
-            <span className="font-semibold text-[var(--text-main)]">{recipe.defaultWater} g</span>
-            {recipe.defaultIce && (
+            <span className="font-semibold text-[var(--text-main)]">
+              {hasIce ? `熱水 ${recipe.defaultWater} g` : `${recipe.defaultWater} g`}
+            </span>
+            {hasIce && (
               <>
                 <span>•</span>
                 <span className="text-cyan-600 dark:text-cyan-400 font-medium">
-                  冰塊 {recipe.defaultIce} g
+                  冰塊 {defaultIce} g
+                </span>
+                <span>•</span>
+                <span className="font-semibold text-[var(--text-main)]">
+                  總液量 {baseTotalLiquid} g
                 </span>
               </>
             )}
@@ -153,6 +202,10 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
             <span>{recipe.temperature} °C</span>
             <span>•</span>
             <span>{formatSeconds(recipe.totalTimeSeconds)}</span>
+            <span>•</span>
+            <span className="text-[var(--accent-coffee)] font-medium">
+              1:{(baseTotalLiquid / recipe.defaultCoffee).toFixed(1)}{hasIce ? ' (含冰)' : ''}
+            </span>
           </div>
         </div>
 
@@ -162,11 +215,13 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
             調整這一杯
           </h3>
           <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-4">
-            改粉量或總水量，另一項與每段注水會依原配方比例自動換算。只調整這次沖煮，不修改原配方。
+            {hasIce
+              ? '修改粉量、熱水或冰塊，各數值與每段注水會依原配方比例（納入冰塊）自動換算。'
+              : '改粉量或總水量，另一項與每段注水會依原配方比例自動換算。只調整這次沖煮，不修改原配方。'}
           </p>
 
-          {/* Dual Picker Cards */}
-          <div className="flex gap-3 mb-3">
+          {/* Dual or Triple Picker Cards */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <PickerWheel
               label="粉量"
               value={coffeeAmount}
@@ -177,23 +232,43 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
               onChange={handleCoffeeChange}
             />
             <PickerWheel
-              label="總水量"
+              label={hasIce ? "熱水量" : "總水量"}
               value={waterAmount}
-              min={100}
+              min={50}
               max={900}
               step={5}
               unit="g"
               onChange={handleWaterChange}
             />
+            {hasIce && (
+              <div className="col-span-2">
+                <PickerWheel
+                  label="冰塊量"
+                  value={iceAmount}
+                  min={10}
+                  max={400}
+                  step={5}
+                  unit="g"
+                  onChange={handleIceChange}
+                />
+              </div>
+            )}
           </div>
 
           <div className="text-xs text-[var(--text-muted)] flex items-center justify-between pt-1">
-            <span>維持原配方粉水比 {recipe.ratio}</span>
-            {coffeeAmount !== recipe.defaultCoffee && (
+            <span>
+              {hasIce
+                ? `維持原配方粉水比 1:${currentRatioText}（含冰 ${iceAmount}g + 熱水 ${waterAmount}g）`
+                : `維持原配方粉水比 1:${currentRatioText}`}
+            </span>
+            {(coffeeAmount !== recipe.defaultCoffee ||
+              waterAmount !== recipe.defaultWater ||
+              (hasIce && iceAmount !== defaultIce)) && (
               <button
                 onClick={() => {
                   setCoffeeAmount(recipe.defaultCoffee);
                   setWaterAmount(recipe.defaultWater);
+                  if (hasIce) setIceAmount(defaultIce);
                 }}
                 className="text-[var(--accent-coffee)] hover:underline text-xs cursor-pointer font-medium"
               >
@@ -244,7 +319,7 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Persistent Floating "開始計時" Action Button - Portaled directly to body to guarantee screen viewport bottom placement */}
+      {/* Persistent Floating "開始計時" Action Button */}
       {createPortal(
         <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 pointer-events-none safe-bottom">
           <button
@@ -254,7 +329,8 @@ export const RecipeDetailView: React.FC<RecipeDetailViewProps> = ({
                 coffeeAmount,
                 waterAmount,
                 scaledSteps,
-                ''
+                '',
+                hasIce ? iceAmount : undefined
               )
             }
             className="pointer-events-auto px-7 py-3.5 rounded-full liquid-glass font-bold text-base flex items-center gap-2.5 transition-all cursor-pointer shadow-xl active:scale-95"

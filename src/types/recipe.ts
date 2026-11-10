@@ -13,7 +13,20 @@ export interface ScaledStep extends Step {
   accumulatedWater: number;
 }
 
-export type BrewerType = 'V60' | 'Kalita Wave' | 'Origami' | '冰手沖' | 'All';
+export type GrindLevel = 'Fine' | 'Medium-Fine' | 'Medium' | 'Medium-Coarse' | 'Coarse';
+
+export type BrewerType =
+  | 'All'
+  | '自訂'
+  | 'V60'
+  | 'Chemex'
+  | 'Kalita Wave'
+  | 'Origami'
+  | '聰明濾杯'
+  | 'Melitta'
+  | 'April'
+  | '冰手沖'
+  | string;
 
 export interface Recipe {
   id: string;
@@ -31,4 +44,7 @@ export interface Recipe {
   grindAndFlavor: string;
   beanPairing: string;
   steps: Step[];
+  isCustom?: boolean;
+  grindLevel?: GrindLevel;
+  createdAt?: number;
 }
